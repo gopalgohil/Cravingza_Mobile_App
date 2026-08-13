@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "251093525293",
+    "project_id": "cravingza-fd504",
+    "storage_bucket": "cravingza-fd504.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:251093525293:android:0c6a16bd91a3079ff269a4",
+        "android_client_info": {
+          "package_name": "com.firstprojectcli"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "251093525293-csm7eq0sv1848r985pieba3o9hmk0bre.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_iLcMZZIax9g0j7NxdA97oXjB4hHUyYQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "251093525293-csm7eq0sv1848r985pieba3o9hmk0bre.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
