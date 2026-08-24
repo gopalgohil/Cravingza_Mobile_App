@@ -321,10 +321,9 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
               </View>
             ))}
 
-            {/* 📍 DELIVERY ADDRESS Box */}
+            {/* DELIVERY ADDRESS Box */}
             <View style={styles.deliveryAddressCardBox}>
               <View style={styles.addressTitleRow}>
-                <Text style={{ fontSize: 14 }}>📍</Text>
                 <Text style={styles.addressTitleLabel}>DELIVERY ADDRESS</Text>
               </View>
               <View style={styles.addressContentRow}>
@@ -380,7 +379,7 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
                 onPress={handleReorder}
                 activeOpacity={0.85}
               >
-                <Text style={styles.reorderFoodBtnText}>🔄 Reorder Food</Text>
+                <Text style={styles.reorderFoodBtnText}>Reorder Food</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -397,7 +396,7 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
                     isCancelDisabled && styles.cancelOrderBtnTextDisabled,
                   ]}
                 >
-                  {isCancelDisabled ? '❌ Cancel Order (Disabled)' : '❌ Cancel Order'}
+                  {isCancelDisabled ? 'Cancel Order (Disabled)' : 'Cancel Order'}
                 </Text>
               </TouchableOpacity>
             </View>
