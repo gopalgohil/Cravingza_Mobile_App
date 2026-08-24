@@ -16,7 +16,7 @@ export const getSharedOrders = () => sharedOrders;
 
 export const getSharedCustomerNotifs = () => sharedCustomerNotifs;
 
-export const setSharedOrders = (orders: any[]) => {
+export const setSharedOrders = (orders: any[], notify = false) => {
   if (Array.isArray(orders) && orders.length > 0) {
     // Merge new API orders with shared memory
     orders.forEach((newOrd) => {
@@ -28,7 +28,9 @@ export const setSharedOrders = (orders: any[]) => {
         sharedOrders.unshift(newOrd);
       }
     });
-    notifyOrderSyncListeners();
+    if (notify) {
+      notifyOrderSyncListeners();
+    }
   }
 };
 

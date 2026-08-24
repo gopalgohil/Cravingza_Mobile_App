@@ -26,6 +26,7 @@ import {
   updateSharedOrderStatus,
   subscribeOrderSync,
 } from '../../../services/orderSyncStore';
+import { subscribeToOrderUpdates } from '../../../services/socketService';
 import { DeliverySidebarDrawer } from '../components/DeliverySidebarDrawer';
 
 const renderDeliveryNavIcon = (name: string, active: boolean) => {
@@ -95,7 +96,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [acceptedOrderIds, setAcceptedOrderIds] = useState<string[]>([]);
   const [declinedOrderIds, setDeclinedOrderIds] = useState<string[]>([]);
 
-  const [prevOrderStatuses, setPrevOrderStatuses] = useState<Record<string, string>>({});
+  const prevOrderStatusesRef = useRef<Record<string, string>>({});
   const [notificationBanner, setNotificationBanner] = useState<{
     visible: boolean;
     title: string;
@@ -106,21 +107,20 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend or Local Sync
   const fetchDeliveries = useCallback(async () => {
     try {
-      console.log('Fetching Live Delivery Partner Orders from MongoDB Atlas...');
       const res = await apiClient('/orders');
       let orderList = res?.orders || res?.data || (Array.isArray(res) ? res : []);
 
       if (!Array.isArray(orderList) || orderList.length === 0) {
         orderList = getSharedOrders();
       } else {
-        setSharedOrders(orderList);
+        setSharedOrders(orderList, false);
       }
 
       if (Array.isArray(orderList)) {
         // Real-time status change detection from Restaurant Admin
         orderList.forEach((o) => {
           const idStr = o._id || o.id;
-          const oldSt = prevOrderStatuses[idStr];
+          const oldSt = prevOrderStatusesRef.current[idStr];
           const newSt = (o.status || '').toLowerCase();
 
           if (
@@ -171,7 +171,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           const idStr = o._id || o.id;
           statusMap[idStr] = o.status;
         });
-        setPrevOrderStatuses(statusMap);
+        prevOrderStatusesRef.current = statusMap;
 
         setOrders(orderList);
       } else {
@@ -184,21 +184,23 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [prevOrderStatuses]);
+  }, []);
 
-  // 🔹 Initial Fetch & Auto Polling + Store Listener
+  // 🔹 Real-Time WebSockets (Socket.io) Instant Push Listener for Delivery Hero
   useEffect(() => {
     fetchDeliveries();
-    const interval = setInterval(() => {
+
+    const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
+      console.log('⚡ [DeliveryPartner] Real-Time Socket.io Order Event:', orderData);
       fetchDeliveries();
-    }, 4000);
+    });
 
     const unsubscribe = subscribeOrderSync(() => {
       setOrders([...getSharedOrders()]);
     });
 
     return () => {
-      clearInterval(interval);
+      unsubscribeSocket();
       unsubscribe();
     };
   }, [fetchDeliveries]);

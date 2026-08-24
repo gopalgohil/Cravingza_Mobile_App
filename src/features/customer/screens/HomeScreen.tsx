@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import { CATEGORIES } from '../constants/categories';
 import { apiClient } from '../../../services/apiClient';
 import { RestaurantCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
 import { subscribeCustomerNotif } from '../../../services/orderSyncStore';
+import { subscribeToOrderUpdates } from '../../../services/socketService';
 
 const renderNavIcon = (name: string, active: boolean) => {
   const color = active ? COLORS.primary : '#94A3B8';
@@ -115,7 +116,7 @@ export const HomeScreen = ({ navigation }: any) => {
     },
   ]);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
-  const [prevOrderStatuses, setPrevOrderStatuses] = useState<Record<string, string>>({});
+  const prevOrderStatusesRef = useRef<Record<string, string>>({});
 
   // 🔹 Check Real-Time Order Updates from Restaurant Admin
   const checkOrderNotifications = React.useCallback(async () => {
@@ -125,7 +126,7 @@ export const HomeScreen = ({ navigation }: any) => {
       if (Array.isArray(orderList) && orderList.length > 0) {
         orderList.forEach((o) => {
           const idStr = o._id || o.id;
-          const oldSt = prevOrderStatuses[idStr];
+          const oldSt = prevOrderStatusesRef.current[idStr];
           const newSt = (o.status || '').toLowerCase();
 
           if (oldSt && oldSt.toLowerCase() !== newSt) {
@@ -168,24 +169,28 @@ export const HomeScreen = ({ navigation }: any) => {
           const idStr = o._id || o.id;
           statusMap[idStr] = o.status;
         });
-        setPrevOrderStatuses(statusMap);
+        prevOrderStatusesRef.current = statusMap;
       }
     } catch (err: any) {
       console.log('Customer Notification Check Note:', err.message);
     }
-  }, [prevOrderStatuses]);
+  }, []);
 
-  // 🔹 Auto Poll for Customer Notifications every 6 seconds + Subscribe to Live Store Sync
+  // 🔹 Real-Time WebSockets (Socket.io) Instant Push Alerts + Initial Load
   useEffect(() => {
     checkOrderNotifications();
-    const interval = setInterval(checkOrderNotifications, 6000);
+
+    const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
+      console.log('⚡ [HomeScreen] Received Real-Time Socket.io Order Event:', orderData);
+      checkOrderNotifications();
+    });
 
     const unsubscribeSync = subscribeCustomerNotif((notifObj) => {
       setNotifications((prev) => [notifObj, ...prev]);
     });
 
     return () => {
-      clearInterval(interval);
+      unsubscribeSocket();
       unsubscribeSync();
     };
   }, [checkOrderNotifications]);

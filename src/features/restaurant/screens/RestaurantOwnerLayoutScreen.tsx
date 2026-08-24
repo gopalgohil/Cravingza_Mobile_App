@@ -16,6 +16,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Modal, ScrollView } from 'react-native';
 import { getOwnerDashboardStatsApi, getOwnerOrdersApi } from '../services/restaurantOwnerApi';
 import { subscribeOrderSync, getSharedOrders } from '../../../services/orderSyncStore';
+import { subscribeToOrderUpdates } from '../../../services/socketService';
 import {
   OwnerDashboardSkeleton,
   OwnerOrdersSkeleton,
@@ -147,17 +148,14 @@ export const RestaurantOwnerLayoutScreen = ({ navigation }: any) => {
     // Initial fetch on mount
     pollIncomingOrders();
 
-    // 🔄 Auto-Poll every 8 seconds in the background
-    const intervalId = setInterval(pollIncomingOrders, 8000);
-
-    // Also subscribe to local order store for instant local sync
-    const unsubscribeSync = subscribeOrderSync(() => {
+    // ⚡ Real-Time WebSockets (Socket.io) Instant Push Listener for Restaurant Owner
+    const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
+      console.log('⚡ [RestaurantOwner] Real-Time Socket.io Order Received/Updated:', orderData);
       pollIncomingOrders();
     });
 
     return () => {
-      clearInterval(intervalId);
-      unsubscribeSync();
+      unsubscribeSocket();
     };
   }, []);
 
