@@ -102,8 +102,16 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
   // Bill Calculations
   const itemSubtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
   const deliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 30;
-  const taxes = Number((itemSubtotal * 0.05).toFixed(2));
-  const grandTotal = Math.max(0, Number((itemSubtotal + deliveryFee + taxes - discountAmount).toFixed(2)));
+
+  const rawTargetTotal = route?.params?.originalGrandTotal && Number(route.params.originalGrandTotal) > 0
+    ? Number(route.params.originalGrandTotal)
+    : (itemSubtotal + deliveryFee + Number((itemSubtotal * 0.05).toFixed(2)) - discountAmount);
+
+  const taxes = route?.params?.originalGrandTotal && Number(route.params.originalGrandTotal) > 0
+    ? Number(Math.max(0, rawTargetTotal - itemSubtotal - deliveryFee + discountAmount).toFixed(2))
+    : Number((itemSubtotal * 0.05).toFixed(2));
+
+  const grandTotal = Math.max(0, Number(rawTargetTotal.toFixed(2)));
 
   // Quantity Handlers
   const handleIncreaseQty = (idx: number) => {

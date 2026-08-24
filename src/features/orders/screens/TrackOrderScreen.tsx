@@ -132,6 +132,9 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
   // 🔄 Reorder Handler
   const handleReorder = () => {
     clearCart();
+    const originalTotal = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || totalPrice || 0);
+    const originalDelFee = Number(orderDetail?.deliveryFee || 30);
+
     const reorderItems = items.map((it: any, idx: number) => ({
       menuItem: it.id || it.menuItem || `reorder_${idx}_${Date.now()}`,
       name: it.name,
@@ -159,7 +162,8 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             restaurantName,
             isReorder: true,
             skipAutoCoupon: true,
-            deliveryFee: Number(orderDetail?.deliveryFee || 25),
+            deliveryFee: originalDelFee,
+            originalGrandTotal: originalTotal,
             cartItems: reorderItems,
           }),
       },
