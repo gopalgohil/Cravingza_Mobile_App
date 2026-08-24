@@ -159,6 +159,7 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             restaurantName,
             isReorder: true,
             skipAutoCoupon: true,
+            deliveryFee: Number(orderDetail?.deliveryFee || 25),
             cartItems: reorderItems,
           }),
       },

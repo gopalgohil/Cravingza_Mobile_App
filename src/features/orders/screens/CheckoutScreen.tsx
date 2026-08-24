@@ -101,7 +101,7 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
   // Bill Calculations
   const itemSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = itemSubtotal > 300 ? 0 : 25;
+  const deliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 25;
   const taxes = 35;
   const grandTotal = Math.max(0, itemSubtotal + deliveryFee + taxes - discountAmount);
 
