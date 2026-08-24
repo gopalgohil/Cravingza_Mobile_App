@@ -590,6 +590,9 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
               placeholder="Enter promo code (e.g. CRAVE30)"
               placeholderTextColor="#94A3B8"
               autoCapitalize="characters"
+              selectTextOnFocus={true}
+              contextMenuHidden={false}
+              editable={true}
             />
             <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon}>
               <Text style={styles.applyBtnText}>Apply</Text>
