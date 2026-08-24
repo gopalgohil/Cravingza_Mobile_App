@@ -154,17 +154,23 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     } catch (error: any) {
       console.log('Apply Coupon API Error:', error.message);
       // Fallback calculation for dev/demo codes
-      if (code === 'CRAVE30') {
+      if (code === 'CRAVE30' || code === 'CRAVE50' || code === 'RESTAURANT30') {
         const discount = Math.min(150, Math.round(itemSubtotal * 0.3));
         setDiscountAmount(discount);
-        setAppliedCoupon('CRAVE30');
-        Alert.alert('Coupon Applied! 🎉', `Code CRAVE30 saved you ₹${discount}!`);
-      } else if (code === 'FREEDEL') {
-        setDiscountAmount(deliveryFee);
-        setAppliedCoupon('FREEDEL');
-        Alert.alert('Coupon Applied! 🎉', 'Free Delivery unlocked!');
+        setAppliedCoupon(code);
+        Alert.alert('Coupon Applied! 🎉', `Code ${code} saved you ₹${discount}!`);
+      } else if (code === 'FREEDEL' || code === 'REEDEL50' || code === 'FREEDEL50') {
+        const discount = 50;
+        setDiscountAmount(discount);
+        setAppliedCoupon(code);
+        Alert.alert('Coupon Applied! 🎉', `Code ${code} saved you ₹${discount} + Free Delivery!`);
+      } else if (code === 'WELCOME100') {
+        const discount = 100;
+        setDiscountAmount(discount);
+        setAppliedCoupon('WELCOME100');
+        Alert.alert('Coupon Applied! 🎉', 'Welcome Deal! Saved ₹100!');
       } else {
-        Alert.alert('Invalid Coupon ❌', error.message || 'Invalid coupon code. Try CRAVE30 or FREEDEL.');
+        Alert.alert('Invalid Coupon ❌', error.message || 'Invalid coupon code. Try CRAVE30, REEDEL50, or WELCOME100.');
       }
     }
   };
