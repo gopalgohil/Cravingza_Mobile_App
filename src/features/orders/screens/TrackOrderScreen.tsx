@@ -132,10 +132,17 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
   // 🔄 Reorder Handler
   const handleReorder = () => {
     clearCart();
-    items.forEach((it: any, idx: number) => {
+    const reorderItems = items.map((it: any, idx: number) => ({
+      menuItem: it.id || it.menuItem || `reorder_${idx}_${Date.now()}`,
+      name: it.name,
+      price: Number(it.price || 0),
+      quantity: Number(it.quantity || 1),
+    }));
+
+    reorderItems.forEach((it: any) => {
       addToCart(
         {
-          id: `reorder_${idx}_${Date.now()}`,
+          id: it.menuItem,
           name: it.name,
           price: it.price,
         },
@@ -143,12 +150,16 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
         restaurantName
       );
     });
+
     safeAlert('Items Added to Cart! 🛒', `Items from ${restaurantName} added. Proceed to checkout?`, [
       {
         text: 'Proceed to Checkout',
         onPress: () =>
           navigation.navigate('Checkout', {
             restaurantName,
+            isReorder: true,
+            skipAutoCoupon: true,
+            cartItems: reorderItems,
           }),
       },
       { text: 'Cancel', style: 'cancel' },

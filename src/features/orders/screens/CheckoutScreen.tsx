@@ -87,14 +87,15 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
 
-  // Auto-apply Restaurant Discount Offer on Checkout Load
+  // Auto-apply Restaurant Discount Offer on Checkout Load (skipped if reordering)
+  const isReorderMode = !!route?.params?.isReorder || !!route?.params?.skipAutoCoupon;
+
   React.useEffect(() => {
-    if (!appliedCoupon && itemSubtotal >= 199) {
-      const autoDiscount = Math.min(150, Math.round(itemSubtotal * 0.3));
-      setDiscountAmount(autoDiscount);
-      setAppliedCoupon('RESTAURANT30');
+    if (isReorderMode) {
+      setDiscountAmount(0);
+      setAppliedCoupon(null);
     }
-  }, [itemSubtotal]);
+  }, [isReorderMode]);
 
   const [loading, setLoading] = useState(false);
 
