@@ -85,6 +85,7 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
   // Promo Code States
   const [couponInput, setCouponInput] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [isFreeDelivery, setIsFreeDelivery] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
 
   // Auto-apply Restaurant Discount Offer on Checkout Load (skipped if reordering)
@@ -93,6 +94,7 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
   React.useEffect(() => {
     if (isReorderMode) {
       setDiscountAmount(0);
+      setIsFreeDelivery(false);
       setAppliedCoupon(null);
     }
   }, [isReorderMode]);
@@ -101,7 +103,8 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
   // Bill Calculations
   const itemSubtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
-  const deliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 30;
+  const baseDeliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 30;
+  const deliveryFee = isFreeDelivery ? 0 : baseDeliveryFee;
 
   const rawTargetTotal = route?.params?.originalGrandTotal && Number(route.params.originalGrandTotal) > 0
     ? Number(route.params.originalGrandTotal)
@@ -147,30 +150,35 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
       });
       console.log('Apply Coupon API Response:', res);
 
-      const discount = res?.discountAmount || res?.data?.discountAmount || 150;
+      const discount = res?.discountAmount || res?.data?.discountAmount || 50;
+      const freeDel = !!(res?.isFreeDelivery || res?.data?.isFreeDelivery || res?.data?.category === 'delivery' || code.includes('FREEDEL') || code.includes('REEDEL'));
       setDiscountAmount(discount);
+      setIsFreeDelivery(freeDel);
       setAppliedCoupon(code);
-      Alert.alert('Coupon Applied! 🎉', res?.message || `Code ${code} applied successfully! Saved ₹${discount}`);
+      Alert.alert('Coupon Applied! 🎉', res?.message || `Code ${code} applied successfully! Saved ₹${discount}${freeDel ? ' + Free Delivery' : ''}`);
     } catch (error: any) {
       console.log('Apply Coupon API Error:', error.message);
       // Fallback calculation for dev/demo codes
       if (code === 'CRAVE30' || code === 'CRAVE50' || code === 'RESTAURANT30') {
         const discount = Math.min(150, Math.round(itemSubtotal * 0.3));
         setDiscountAmount(discount);
+        setIsFreeDelivery(false);
         setAppliedCoupon(code);
         Alert.alert('Coupon Applied! 🎉', `Code ${code} saved you ₹${discount}!`);
       } else if (code === 'FREEDEL' || code === 'REEDEL50' || code === 'FREEDEL50') {
         const discount = 50;
         setDiscountAmount(discount);
+        setIsFreeDelivery(true);
         setAppliedCoupon(code);
         Alert.alert('Coupon Applied! 🎉', `Code ${code} saved you ₹${discount} + Free Delivery!`);
       } else if (code === 'WELCOME100') {
         const discount = 100;
         setDiscountAmount(discount);
+        setIsFreeDelivery(false);
         setAppliedCoupon('WELCOME100');
         Alert.alert('Coupon Applied! 🎉', 'Welcome Deal! Saved ₹100!');
       } else {
-        Alert.alert('Invalid Coupon ❌', error.message || 'Invalid coupon code. Try CRAVE30, REEDEL50, or WELCOME100.');
+        Alert.alert('Coupon Error ❌', error.message || 'Invalid coupon code. Try CRAVE30, FREEDEL50, or WELCOME100.');
       }
     }
   };
