@@ -198,18 +198,10 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
           <Text style={styles.topNavIconText}>←</Text>
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>Live Order Tracking 📍</Text>
+          <Text style={styles.headerTitle}>Live Order Tracking</Text>
           <Text style={styles.headerSub}>{currentOrderNum}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.iconCircleBtn}
-          onPress={() => {
-            setLoading(true);
-            fetchOrderDetails();
-          }}
-        >
-          <Text style={styles.topNavIconText}>🔄</Text>
-        </TouchableOpacity>
+        <View style={{ width: 38 }} />
       </View>
 
       {loading ? (
