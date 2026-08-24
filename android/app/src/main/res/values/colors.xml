@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary_orange">#EA580C</color>
-    <color name="splash_bg">#EA580C</color>
+    <color name="primary_orange">#FF5000</color>
+    <color name="splash_bg">#FF5000</color>
 </resources>

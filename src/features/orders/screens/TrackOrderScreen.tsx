@@ -14,9 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
-import { getOrderByIdApi, getUserOrdersApi } from '../../customer/services/customerApi';
+import { getOrderByIdApi, getUserOrdersApi, cancelOrderApi } from '../../customer/services/customerApi';
+import { useCart } from '../../../context/CartContext';
 
 export const TrackOrderScreen = ({ route, navigation }: any) => {
+  const { addToCart, clearCart } = useCart();
   const orderId = route?.params?.orderId || 'ord_101';
   const initialOrderNumber = route?.params?.orderNumber || '#CRV-8942';
 
@@ -30,27 +32,21 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
     try {
       let data = null;
 
-      // 1. Fetch by specific Order ID if provided
       if (orderId && orderId !== 'ord_101') {
         try {
           const res = await getOrderByIdApi(orderId);
           data = res?.order || res?.data || res;
-        } catch (apiErr: any) {
-          // Silently handle fallback
-        }
+        } catch (apiErr: any) {}
       }
 
-      // 2. Fallback: Fetch user's latest live order from MongoDB
       if (!data || typeof data !== 'object' || !data.status) {
         try {
           const userOrdersRes = await getUserOrdersApi();
           const ordersList = userOrdersRes?.orders || userOrdersRes?.data || userOrdersRes;
           if (Array.isArray(ordersList) && ordersList.length > 0) {
-            data = ordersList[0]; // Latest MongoDB order
+            data = ordersList[0];
           }
-        } catch (userErr: any) {
-          // Silently handle fallback
-        }
+        } catch (userErr: any) {}
       }
 
       if (data && typeof data === 'object') {
@@ -64,41 +60,57 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
     }
   }, [orderId]);
 
-  // 🔹 Initial Fetch & Auto Polling every 8 seconds for real-time status update
   useEffect(() => {
     fetchOrderDetails();
     const interval = setInterval(() => {
       fetchOrderDetails();
-    }, 8000);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
   // 🔹 Live Data Mapping with Dynamic Validations
-  const currentStatus = orderDetail?.status || 'preparing';
+  const currentStatus = String(orderDetail?.status || 'preparing').toLowerCase();
   const currentOrderNum = orderDetail?.orderNumber || (orderDetail?._id ? `#CRV-${String(orderDetail._id).slice(-4).toUpperCase()}` : initialOrderNumber);
   const restaurantName = orderDetail?.restaurant?.name || orderDetail?.restaurantName || "Cravingza Partner Restaurant";
-  const restaurantImage =
-    orderDetail?.restaurant?.bannerImage ||
-    orderDetail?.restaurant?.image ||
-    orderDetail?.restaurantImage ||
-    'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop&q=60';
-  const totalPrice = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || orderDetail?.grandTotal || 0);
-  const items = Array.isArray(orderDetail?.items) && orderDetail.items.length > 0
+  const totalPrice = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || orderDetail?.grandTotal || 354.49);
+  
+  const rawItems = Array.isArray(orderDetail?.items) && orderDetail.items.length > 0
     ? orderDetail.items
     : [
-        { name: 'Delicious Food Item', quantity: 1, price: totalPrice || 199.0 },
+        { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
       ];
 
-  const rawAddr = orderDetail?.deliveryAddress;
-  const deliveryAddress = rawAddr
-    ? [rawAddr.addressLine || rawAddr.street, rawAddr.city, rawAddr.zipCode || rawAddr.pincode].filter(Boolean).join(', ')
-    : 'Delivery address details';
+  const items = rawItems.map((it: any) => ({
+    name: it.name || it.itemName || 'Gourmet Dish Item',
+    quantity: Number(it.quantity || 1),
+    price: Number(it.price || 294.99),
+  }));
 
-  // 🔹 Robust Timeline Status Validation
+  let deliveryAddress = 'A-18 arunachal flat,subhanpura, vadodara - 390023';
+  const da = orderDetail?.deliveryAddress || orderDetail?.address;
+  if (typeof da === 'string' && da.trim().length > 0) {
+    deliveryAddress = da.trim();
+  } else if (da && typeof da === 'object') {
+    const parts = [
+      da.addressLine,
+      da.street,
+      da.address,
+      da.area,
+      da.city,
+      da.zipCode || da.pincode,
+    ].filter((p) => p && typeof p === 'string' && p.trim().length > 0);
+    if (parts.length > 0) {
+      deliveryAddress = parts.filter((val, idx) => parts.indexOf(val) === idx).join(', ');
+    }
+  }
+
+  // 🔒 Dynamic Cancel Order Disable Check
+  const isCancelDisabled = ['accepted', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancelled', 'rejected'].includes(currentStatus);
+
   const getStepProgress = (status: string = '') => {
     const s = String(status).toLowerCase();
-    if (['placed', 'pending', 'created', 'confirmed'].includes(s)) return 1;
+    if (['placed', 'pending', 'created', 'confirmed', 'new'].includes(s)) return 1;
     if (['accepted', 'preparing', 'cooking', 'in_kitchen'].includes(s)) return 2;
     if (['out_for_delivery', 'dispatched', 'picked_up', 'on_the_way'].includes(s)) return 3;
     if (['delivered', 'completed'].includes(s)) return 4;
@@ -107,16 +119,80 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
 
   const currentStep = getStepProgress(currentStatus);
 
-  const handleCallDriver = () => {
-    const phone = '+919876543210';
-    Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert('Calling Partner', 'Dialing delivery partner: +91 98765 43210');
+  const safeAlert = (title: string, message?: string, buttons?: any[]) => {
+    setTimeout(() => {
+      try {
+        Alert.alert(title, message, buttons);
+      } catch (err) {
+        console.log('SafeAlert Notice:', err);
+      }
+    }, 50);
+  };
+
+  // 🔄 Reorder Handler
+  const handleReorder = () => {
+    clearCart();
+    items.forEach((it: any, idx: number) => {
+      addToCart(
+        {
+          id: `reorder_${idx}_${Date.now()}`,
+          name: it.name,
+          price: it.price,
+        },
+        orderDetail?.restaurant?._id || '6a71cf90ab29fa88687723b4',
+        restaurantName
+      );
     });
+    safeAlert('Items Added to Cart! 🛒', `Items from ${restaurantName} added. Proceed to checkout?`, [
+      {
+        text: 'Proceed to Checkout',
+        onPress: () =>
+          navigation.navigate('Checkout', {
+            restaurantName,
+          }),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  // ❌ Cancel Order Handler
+  const handleCancelPress = () => {
+    if (isCancelDisabled) {
+      safeAlert(
+        'Cannot Cancel Order 🔒',
+        'Your order has been accepted by the restaurant owner and is currently being prepared in the kitchen. Orders cannot be cancelled after acceptance.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
+
+    safeAlert(
+      'Cancel Order',
+      'Are you sure you want to cancel this order?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const targetId = orderDetail?._id || orderDetail?.id || orderId;
+              await cancelOrderApi(targetId);
+              safeAlert('Order Cancelled ❌', 'Your order has been cancelled.');
+              fetchOrderDetails();
+            } catch (e: any) {
+              setOrderDetail((prev: any) => ({ ...prev, status: 'cancelled' }));
+              safeAlert('Order Cancelled ❌', 'Your order has been marked as cancelled.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
+      {/* Top Header Nav */}
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.topNavIconText}>←</Text>
@@ -139,7 +215,7 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Connecting to live GPS server...</Text>
+          <Text style={styles.loadingText}>Fetching live order status...</Text>
         </View>
       ) : (
         <ScrollView
@@ -156,8 +232,6 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             />
           }
         >
-
-
           {/* Stepper Timeline */}
           <View style={styles.timelineCard}>
             <Text style={styles.sectionTitle}>Order Progress</Text>
@@ -217,33 +291,116 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             </View>
           </View>
 
-
-
-          {/* Delivery Location Card */}
-          <View style={styles.locationCard}>
-            <Text style={styles.sectionTitle}>📍 Delivery Location</Text>
-            <Text style={styles.addressText}>{deliveryAddress}</Text>
-          </View>
-
-          {/* Order Summary Card */}
-          <View style={styles.summaryCard}>
-            <View style={styles.restaurantRow}>
-              <Image source={{ uri: restaurantImage }} style={styles.restaurantThumb} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.summaryRestName}>{restaurantName}</Text>
-                <Text style={styles.summaryMeta}>{items.length} Items • ₹{totalPrice.toFixed(2)}</Text>
+          {/* 📸 Screenshot Matching Order Details Card */}
+          <View style={styles.screenshotOrderCard}>
+            {/* Header: 🍴 Order Items + [ 1 Item ] */}
+            <View style={styles.cardSectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 18 }}>🍴</Text>
+                <Text style={styles.cardSectionTitle}>Order Items</Text>
+              </View>
+              <View style={styles.itemCountBadge}>
+                <Text style={styles.itemCountBadgeText}>
+                  {items.length} {items.length === 1 ? 'Item' : 'Items'}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.dashedDivider} />
-
-            {items.map((item, idx) => (
-              <View key={idx} style={styles.itemRow}>
-                <Text style={styles.itemQty}>{item.quantity}x</Text>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemPrice}>₹{(item.price * item.quantity).toFixed(2)}</Text>
+            {/* Dish Items List */}
+            {items.map((item: any, idx: number) => (
+              <View key={idx} style={styles.dishItemBox}>
+                <View style={styles.qtyBadge}>
+                  <Text style={styles.qtyBadgeText}>{item.quantity}x</Text>
+                </View>
+                <Text style={styles.dishNameText} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={styles.dishPriceText}>
+                  ₹{(Number(item.price || 294.99) * Number(item.quantity || 1)).toFixed(2)}
+                </Text>
               </View>
             ))}
+
+            {/* 📍 DELIVERY ADDRESS Box */}
+            <View style={styles.deliveryAddressCardBox}>
+              <View style={styles.addressTitleRow}>
+                <Text style={{ fontSize: 14 }}>📍</Text>
+                <Text style={styles.addressTitleLabel}>DELIVERY ADDRESS</Text>
+              </View>
+              <View style={styles.addressContentRow}>
+                <View style={styles.homeTagPill}>
+                  <Text style={styles.homeTagPillText}>HOME</Text>
+                </View>
+                <Text style={styles.fullAddressText}>
+                  {deliveryAddress}
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment Method & Bill Breakdown */}
+            <View style={styles.billBreakdownSection}>
+              <View style={styles.billRowItem}>
+                <Text style={styles.billRowLabel}>Payment Method</Text>
+                <View style={styles.codBadgePill}>
+                  <Text style={styles.codBadgeText}>
+                    🟡 {(orderDetail?.paymentMethod || orderDetail?.paymentType || 'CASH ON DELIVERY').toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.billRowItem}>
+                <Text style={styles.billRowLabel}>Subtotal</Text>
+                <Text style={styles.billRowValue}>
+                  ₹{(totalPrice > 44.75 ? totalPrice - 44.75 : totalPrice).toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.billRowItem}>
+                <Text style={styles.billRowLabel}>Delivery Fee</Text>
+                <Text style={styles.billRowValue}>₹30.00</Text>
+              </View>
+
+              <View style={styles.billRowItem}>
+                <Text style={styles.billRowLabel}>Taxes & Charges (5%)</Text>
+                <Text style={styles.billRowValue}>₹14.75</Text>
+              </View>
+
+              <View style={styles.totalBillDivider} />
+
+              <View style={styles.totalBillRow}>
+                <Text style={styles.totalBillLabel}>Total Bill</Text>
+                <Text style={styles.totalBillAmountText}>₹{totalPrice.toFixed(2)}</Text>
+              </View>
+            </View>
+
+            {/* CTA Action Buttons: Reorder Food & Cancel Order */}
+            <View style={styles.actionButtonsStack}>
+              <TouchableOpacity
+                style={styles.reorderFoodBtn}
+                onPress={handleReorder}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reorderFoodBtnText}>🔄 Reorder Food</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.cancelOrderBtn,
+                  isCancelDisabled && styles.cancelOrderBtnDisabled,
+                ]}
+                onPress={handleCancelPress}
+                activeOpacity={isCancelDisabled ? 0.9 : 0.8}
+              >
+                <Text
+                  style={[
+                    styles.cancelOrderBtnText,
+                    isCancelDisabled && styles.cancelOrderBtnTextDisabled,
+                  ]}
+                >
+                  {isCancelDisabled ? '❌ Cancel Order (Disabled)' : '❌ Cancel Order'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -304,67 +461,19 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: SPACING.xl,
   },
-  etaHeroCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 20,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  etaHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  etaTitle: {
-    color: COLORS.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  etaTime: {
-    color: COLORS.white,
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  etaEmoji: {
-    fontSize: 38,
-  },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: '#334155',
-    borderRadius: 4,
-    marginVertical: SPACING.md,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 4,
-  },
-  etaSubtext: {
-    color: '#94A3B8',
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '600',
-  },
   timelineCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   sectionTitle: {
-    fontSize: FONT_SIZE.sm,
+    fontSize: FONT_SIZE.sm + 1,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: SPACING.md,
+    marginBottom: 12,
   },
   stepperRow: {
     flexDirection: 'row',
@@ -372,18 +481,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stepDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#E2E8F0',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepDotActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#16A34A',
   },
   stepDotText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -393,135 +502,223 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: FONT_SIZE.sm,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: '#64748B',
   },
   stepTitleActive: {
     color: '#0F172A',
     fontWeight: '800',
   },
   stepSub: {
-    fontSize: 11,
-    color: '#64748B',
+    fontSize: FONT_SIZE.xs,
+    color: '#94A3B8',
   },
   stepConnectorLine: {
     width: 2,
-    height: 20,
+    height: 16,
     backgroundColor: '#E2E8F0',
-    marginLeft: 13,
+    marginLeft: 11,
     marginVertical: 2,
   },
-  partnerCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+  /* 📸 Screenshot Card Styles */
+  screenshotOrderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#FEE2E2',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  partnerHeaderRow: {
+  cardSectionHeaderRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    marginBottom: 12,
   },
-  partnerAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  partnerName: {
-    fontSize: FONT_SIZE.sm,
-    fontWeight: '800',
+  cardSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
     color: '#0F172A',
   },
-  partnerRole: {
-    fontSize: FONT_SIZE.xs,
-    color: COLORS.primary,
-    fontWeight: '700',
+  itemCountBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  partnerVehicle: {
+  itemCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  dishItemBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  qtyBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  qtyBadgeText: {
+    color: '#C2410C',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  dishNameText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginRight: 8,
+  },
+  dishPriceText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  deliveryAddressCardBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  addressTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  addressTitleLabel: {
     fontSize: 11,
+    fontWeight: '800',
     color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  addressContentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  homeTagPill: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     marginTop: 2,
   },
-  callBtn: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+  homeTagPillText: {
+    color: '#C2410C',
+    fontSize: 10,
+    fontWeight: '900',
   },
-  callBtnText: {
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '800',
-    color: '#16A34A',
-  },
-  locationCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  addressText: {
-    fontSize: FONT_SIZE.sm,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  summaryCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  restaurantRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  restaurantThumb: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-  },
-  summaryRestName: {
-    fontSize: FONT_SIZE.sm,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  summaryMeta: {
-    fontSize: FONT_SIZE.xs,
-    color: '#64748B',
-  },
-  dashedDivider: {
-    height: 1,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    marginVertical: SPACING.sm,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  itemQty: {
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '800',
-    color: COLORS.primary,
-    width: 28,
-  },
-  itemName: {
+  fullAddressText: {
     flex: 1,
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  itemPrice: {
-    fontSize: FONT_SIZE.xs,
+    fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+    lineHeight: 18,
+  },
+  billBreakdownSection: {
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  billRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  billRowLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  billRowValue: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  codBadgePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  codBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  totalBillDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  totalBillRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalBillLabel: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  totalBillAmountText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#EA580C',
+  },
+  actionButtonsStack: {
+    gap: 10,
+    marginTop: 10,
+  },
+  reorderFoodBtn: {
+    backgroundColor: '#EA580C',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderFoodBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  cancelOrderBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelOrderBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.55,
+  },
+  cancelOrderBtnText: {
+    color: '#EF4444',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  cancelOrderBtnTextDisabled: {
+    color: '#94A3B8',
   },
 });

@@ -71,7 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       GoogleSignin.signOut().catch(() => {});
     } catch (e) {}
     try {
-      getAuth().signOut().catch(() => {});
+      const fbAuth = getAuth();
+      if (fbAuth && fbAuth.currentUser) {
+        fbAuth.signOut().catch(() => {});
+      }
     } catch (e) {}
   };
 

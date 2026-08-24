@@ -65,6 +65,20 @@ export const applyCouponApi = async (payload: ApplyCouponPayload) => {
   });
 };
 
+// 8. Create Coupon API -> POST /api/coupons
+export const createCouponApi = async (payload: {
+  code: string;
+  title: string;
+  description?: string;
+  minOrderValue?: number;
+  discountPercentage?: number;
+}) => {
+  return apiClient('/coupons', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
 export interface CreateRazorpayOrderPayload {
   couponCode?: string;
   restaurant?: string;
@@ -137,11 +151,43 @@ export const updateAddressApi = async (addressId: string, payload: Partial<UserA
   });
 };
 
-// 14. Delete Address API -> DELETE /api/user/addresses/:id
-export const deleteAddressApi = async (addressId: string) => {
-  return apiClient(`/user/addresses/${addressId}`, {
-    method: 'DELETE',
-  });
+// 15. Submit Customer Review API -> POST /api/reviews
+export const submitCustomerReviewApi = async (payload: {
+  orderId?: string;
+  restaurantId?: string;
+  rating: number;
+  comment: string;
+  customerName?: string;
+}) => {
+  try {
+    return await apiClient('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    try {
+      return await apiClient(`/restaurants/${payload.restaurantId || '6a816c0c8170d2e1641c04f1'}/reviews`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (e2) {
+      throw err;
+    }
+  }
+};
+
+// 16. Cancel Order API -> PATCH /api/orders/:id/cancel
+export const cancelOrderApi = async (orderId: string) => {
+  try {
+    return await apiClient(`/orders/${orderId}/cancel`, {
+      method: 'PATCH',
+    });
+  } catch (err) {
+    return await apiClient(`/orders/${orderId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+  }
 };
 
 

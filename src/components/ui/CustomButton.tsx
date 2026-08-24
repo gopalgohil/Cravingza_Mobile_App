@@ -8,6 +8,7 @@ interface CustomButtonProps extends TouchableOpacityProps {
   loading?: boolean;
   variant?: 'primary' | 'secondary' | 'outline';
   showArrow?: boolean;
+  textStyle?: any;
 }
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
@@ -17,6 +18,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   showArrow = true,
   disabled,
   style,
+  textStyle,
   ...props
 }) => {
   const isOutline = variant === 'outline';
@@ -39,7 +41,14 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         <ActivityIndicator color={isOutline ? COLORS.primary : COLORS.white} />
       ) : (
         <View style={styles.contentRow}>
-          <Text style={[styles.text, isOutline && styles.textOutline]}>{title}</Text>
+          <Text
+            style={[styles.text, isOutline && styles.textOutline, textStyle]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {title}
+          </Text>
           {showArrow && (
             <Text style={[styles.arrow, isOutline && styles.textOutline]}> →</Text>
           )}
@@ -56,6 +65,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -82,15 +92,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
+    maxWidth: '100%',
   },
   text: {
     color: COLORS.white,
-    fontSize: FONT_SIZE.lg,
+    fontSize: FONT_SIZE.md + 1,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   arrow: {
     color: COLORS.white,
-    fontSize: FONT_SIZE.lg,
+    fontSize: FONT_SIZE.md + 1,
     fontWeight: 'bold',
   },
   textOutline: {

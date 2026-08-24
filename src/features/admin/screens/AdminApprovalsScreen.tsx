@@ -12,9 +12,11 @@ import {
   RefreshControl,
   StatusBar,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
+import Svg, { Path, Circle } from 'react-native-svg';
 import {
   getAdminRestaurantsApi,
   approveRestaurantApi,
@@ -24,6 +26,35 @@ import {
   rejectDeliveryPartnerApi,
 } from '../services/adminApi';
 
+// 🔹 Clean SVG Vector Outline Icons matching uploaded specification
+const UserOutlineIcon = ({ size = 18, color = "#64748B" }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+    <Circle cx="12" cy="7" r="4" />
+  </Svg>
+);
+
+const MailOutlineIcon = ({ size = 18, color = "#64748B" }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <Path d="M22 6l-10 7L2 6" />
+  </Svg>
+);
+
+const PhoneOutlineIcon = ({ size = 18, color = "#64748B" }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+  </Svg>
+);
+
+const LocationPinOutlineIcon = ({ size = 20, color = "#64748B" }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 21s-7-5.33-7-11a7 7 0 1114 0c0 5.67-7 11-7 11z" />
+    <Circle cx="12" cy="10" r="2.5" />
+    <Path d="M4 22h16" />
+  </Svg>
+);
+
 export const AdminApprovalsScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<'restaurant' | 'delivery'>('restaurant');
   const [loading, setLoading] = useState(true);
@@ -31,8 +62,12 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
   const [items, setItems] = useState<any[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  // Document Image Preview Modal State
-  const [modalVisible, setModalVisible] = useState(false);
+  // Selected Application Modal for Full Details
+  const [selectedApplication, setSelectedApplication] = useState<any | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+  // Document Image Zoom Modal
+  const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedTitle, setSelectedTitle] = useState<string>('Document View');
 
@@ -40,19 +75,14 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
     try {
       setLoading(true);
       if (activeTab === 'restaurant') {
-        console.log('Fetching Super Admin Restaurants API...');
         const res = await getAdminRestaurantsApi();
-        console.log('Admin Restaurants Response:', res);
         setItems(res?.data || res?.restaurants || res || []);
       } else {
-        console.log('Fetching Super Admin Delivery Profiles API...');
         const res = await getAdminDeliveryProfilesApi();
-        console.log('Admin Delivery Profiles Response:', res);
         setItems(res?.data || res?.profiles || res || []);
       }
     } catch (err: any) {
       console.log('Error fetching admin applications:', err.message);
-      Alert.alert('Super Admin Access', err.message || 'Failed to fetch pending applications.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,344 +98,240 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
     fetchApplications();
   };
 
+  const openImageZoom = (url: string, title: string) => {
+    setSelectedImage(url);
+    setSelectedTitle(title);
+    setImageModalVisible(true);
+  };
+
   const handleApprove = async (id: string, name: string) => {
-    Alert.alert(
-      'Approve Partner? ✅',
-      `Are you sure you want to approve "${name}"? This will upgrade their role and make their profile live on Cravingza.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve Now ✅',
-          onPress: async () => {
+    Alert.alert('Approve Partner', `Are you sure you want to approve "${name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Approve',
+        style: 'default',
+        onPress: async () => {
+          try {
             setActionLoadingId(id);
-            try {
-              if (activeTab === 'restaurant') {
-                const res = await approveRestaurantApi(id);
-                Alert.alert('Approved! 🎉', res?.message || 'Restaurant has been approved & role updated!');
-              } else {
-                const res = await approveDeliveryPartnerApi(id);
-                Alert.alert('Approved! 🎉', res?.message || 'Delivery rider has been approved & role updated!');
-              }
-              fetchApplications();
-            } catch (err: any) {
-              Alert.alert('Approval Error ❌', err.message || 'Failed to approve application.');
-            } finally {
-              setActionLoadingId(null);
+            if (activeTab === 'restaurant') {
+              await approveRestaurantApi(id);
+            } else {
+              await approveDeliveryPartnerApi(id);
             }
-          },
+            Alert.alert('Success 🎉', `Application for "${name}" has been approved!`);
+            setDetailModalVisible(false);
+            fetchApplications();
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Action failed.');
+          } finally {
+            setActionLoadingId(null);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleReject = async (id: string, name: string) => {
-    Alert.alert(
-      'Reject Application? ❌',
-      `Are you sure you want to reject "${name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject ❌',
-          style: 'destructive',
-          onPress: async () => {
+    Alert.alert('Reject Application', `Are you sure you want to reject "${name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          try {
             setActionLoadingId(id);
-            try {
-              if (activeTab === 'restaurant') {
-                const res = await rejectRestaurantApi(id);
-                Alert.alert('Rejected', res?.message || 'Restaurant application rejected.');
-              } else {
-                const res = await rejectDeliveryPartnerApi(id);
-                Alert.alert('Rejected', res?.message || 'Delivery rider application rejected.');
-              }
-              fetchApplications();
-            } catch (err: any) {
-              Alert.alert('Rejection Error ❌', err.message || 'Failed to reject application.');
-            } finally {
-              setActionLoadingId(null);
+            if (activeTab === 'restaurant') {
+              await rejectRestaurantApi(id);
+            } else {
+              await rejectDeliveryPartnerApi(id);
             }
-          },
+            Alert.alert('Application Rejected', `Application for "${name}" has been rejected.`);
+            setDetailModalVisible(false);
+            fetchApplications();
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Action failed.');
+          } finally {
+            setActionLoadingId(null);
+          }
         },
-      ]
-    );
-  };
-
-  const openImageModal = (url: string, title: string) => {
-    if (url) {
-      setSelectedImage(url);
-      setSelectedTitle(title);
-      setModalVisible(true);
-    }
+      },
+    ]);
   };
 
   const renderRestaurantItem = ({ item }: { item: any }) => {
-    const isPending = item.approvalStatus === 'pending' || !item.approvalStatus;
     const isApproved = item.approvalStatus === 'approved';
     const isRejected = item.approvalStatus === 'rejected';
 
-    // Exact extraction for all 3 Cloudinary Document URLs uploaded by customer
-    const coverUrl =
-      item.image ||
-      item.coverImageUrl ||
-      item.coverImage ||
-      item.documents?.coverImage ||
-      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80';
-
-    const fssaiUrl =
-      item.documents?.fssaiLicense ||
-      item.documents?.fssai ||
-      item.fssaiLicenseUrl ||
-      item.fssaiLicense ||
-      item.fssai ||
-      'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500&auto=format&fit=crop&q=80';
-
-    const gstUrl =
-      item.documents?.businessRegistration ||
-      item.documents?.gstCertificate ||
-      item.businessRegistrationUrl ||
-      item.gstCertificateUrl ||
-      item.gstCertificate ||
-      'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80';
+    const ownerName = item.ownerName || item.owner?.name || item.name || item.user?.name || 'Partner Owner';
+    const city = item.city || item.location?.city || 'Vadodara';
+    const appliedDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '13 Aug';
 
     return (
-      <View style={styles.card}>
-        {/* Card Header */}
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.85}
+        onPress={() => {
+          setSelectedApplication(item);
+          setDetailModalVisible(true);
+        }}
+      >
+        {/* Top Header Row: Restaurant Name & Status Badge */}
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.itemTitle}>{item.name || 'Unnamed Restaurant'}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              isApproved && styles.statusBadgeApproved,
-              isRejected && styles.statusBadgeRejected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                isApproved && styles.statusTextApproved,
-                isRejected && styles.statusTextRejected,
-              ]}
-            >
-              {isApproved ? 'APPROVED ✅' : isRejected ? 'REJECTED ❌' : 'PENDING ⏳'}
+          <Text style={styles.itemTitle} numberOfLines={1}>{item.name || 'Restaurant Application'}</Text>
+          <View style={[styles.statusBadge, isApproved && styles.statusBadgeApproved, isRejected && styles.statusBadgeRejected]}>
+            <Text style={[styles.statusText, isApproved && styles.statusTextApproved, isRejected && styles.statusTextRejected]}>
+              {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.cuisineText}>
-          🏷️ {Array.isArray(item.cuisineTags) ? item.cuisineTags.join(', ') : item.cuisineTags || 'Fast Food'}
-        </Text>
-        <Text style={styles.detailText}>📍 {item.location?.address || item.addressLine || 'Sector 62 Market'}, {item.location?.city || item.city || 'Noida'}</Text>
-        <Text style={styles.detailText}>📮 Pincode: {item.pincode || '201301'}</Text>
-        <Text style={styles.detailText}>📞 Owner Phone: {item.ownerPhone || item.phone || '9876543210'}</Text>
-
-        {/* 🌟 3 Cloudinary Uploaded Documents Grid */}
-        <Text style={styles.docHeaderTitle}>☁️ Cloudinary Uploaded Documents (3 Files):</Text>
-        <View style={styles.docGrid}>
-          {/* Document 1: Cover Photo */}
-          <TouchableOpacity
-            style={styles.docCard}
-            onPress={() => coverUrl && openImageModal(coverUrl, 'Cover Photo')}
-            disabled={!coverUrl}
-          >
-            {coverUrl ? (
-              <Image source={{ uri: coverUrl }} style={styles.docThumb} resizeMode="cover" />
-            ) : (
-              <View style={[styles.docThumb, styles.emptyDocThumb]}>
-                <Text style={{ fontSize: 20 }}>🖼️</Text>
-                <Text style={styles.emptyDocText}>Not Uploaded</Text>
-              </View>
-            )}
-            <View style={styles.docCardBadge}>
-              <Text style={styles.docCardTitle} numberOfLines={1}>🖼️ Cover Photo</Text>
-              <Text style={[styles.docViewLink, !coverUrl && { color: '#94A3B8' }]}>
-                {coverUrl ? 'View 👁️' : 'Missing ⚠️'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Document 2: FSSAI License */}
-          <TouchableOpacity
-            style={styles.docCard}
-            onPress={() => fssaiUrl && openImageModal(fssaiUrl, 'FSSAI License')}
-            disabled={!fssaiUrl}
-          >
-            {fssaiUrl ? (
-              <Image source={{ uri: fssaiUrl }} style={styles.docThumb} resizeMode="cover" />
-            ) : (
-              <View style={[styles.docThumb, styles.emptyDocThumb]}>
-                <Text style={{ fontSize: 20 }}>📜</Text>
-                <Text style={styles.emptyDocText}>Not Uploaded</Text>
-              </View>
-            )}
-            <View style={styles.docCardBadge}>
-              <Text style={styles.docCardTitle} numberOfLines={1}>📜 FSSAI License</Text>
-              <Text style={[styles.docViewLink, !fssaiUrl && { color: '#94A3B8' }]}>
-                {fssaiUrl ? 'View 👁️' : 'Missing ⚠️'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Document 3: GST Certificate */}
-          <TouchableOpacity
-            style={styles.docCard}
-            onPress={() => gstUrl && openImageModal(gstUrl, 'GST Certificate')}
-            disabled={!gstUrl}
-          >
-            {gstUrl ? (
-              <Image source={{ uri: gstUrl }} style={styles.docThumb} resizeMode="cover" />
-            ) : (
-              <View style={[styles.docThumb, styles.emptyDocThumb]}>
-                <Text style={{ fontSize: 20 }}>🧾</Text>
-                <Text style={styles.emptyDocText}>Not Uploaded</Text>
-              </View>
-            )}
-            <View style={styles.docCardBadge}>
-              <Text style={styles.docCardTitle} numberOfLines={1}>🧾 GST Certificate</Text>
-              <Text style={[styles.docViewLink, !gstUrl && { color: '#94A3B8' }]}>
-                {gstUrl ? 'View 👁️' : 'Missing ⚠️'}
-              </Text>
-            </View>
-          </TouchableOpacity>
+        {/* Sub Meta Row: Owner Name & Location */}
+        <View style={styles.ownerInfoRow}>
+          <View style={styles.metaItem}>
+            <UserOutlineIcon size={14} color="#64748B" />
+            <Text style={styles.ownerMetaText} numberOfLines={1}>{ownerName}</Text>
+          </View>
+          <Text style={styles.metaDivider}>•</Text>
+          <View style={styles.metaItem}>
+            <LocationPinOutlineIcon size={14} color="#64748B" />
+            <Text style={styles.ownerMetaText} numberOfLines={1}>{city}</Text>
+          </View>
         </View>
 
-        {/* Action Buttons */}
-        {actionLoadingId === item._id ? (
-          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 14 }} />
-        ) : (
-          <View style={styles.actionBtnRow}>
-            {isPending && (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.approveBtn]}
-                  onPress={() => handleApprove(item._id, item.name)}
-                >
-                  <Text style={styles.approveBtnText}>✅ Approve Partner</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.rejectBtn]}
-                  onPress={() => handleReject(item._id, item.name)}
-                >
-                  <Text style={styles.rejectBtnText}>❌ Reject</Text>
-                </TouchableOpacity>
-              </>
-            )}
+        {/* Card Footer Row: Applied Date & CTA */}
+        <View style={styles.cardBottomRow}>
+          <Text style={styles.appliedDateText}>Applied {appliedDate}</Text>
+          <View style={styles.reviewCtaBtn}>
+            <Text style={styles.tapToViewText}>Review Application →</Text>
           </View>
-        )}
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   const renderDeliveryItem = ({ item }: { item: any }) => {
-    const isPending = item.approvalStatus === 'pending' || !item.approvalStatus;
     const isApproved = item.approvalStatus === 'approved';
     const isRejected = item.approvalStatus === 'rejected';
 
-    const dlUrl =
-      item.documents?.drivingLicense ||
-      item.drivingLicenseUrl ||
-      '';
-
-    const aadhaarUrl =
-      item.documents?.aadhaarCard ||
-      item.aadhaarCardUrl ||
-      '';
+    const riderName = item.name || item.user?.name || 'Delivery Partner';
+    const city = item.city || 'Vadodara';
+    const appliedDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '13 Aug';
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.85}
+        onPress={() => {
+          setSelectedApplication(item);
+          setDetailModalVisible(true);
+        }}
+      >
+        {/* Top Header Row: Rider Name & Status Badge */}
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.itemTitle}>{item.user?.name || item.phone || 'Delivery Rider'}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              isApproved && styles.statusBadgeApproved,
-              isRejected && styles.statusBadgeRejected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                isApproved && styles.statusTextApproved,
-                isRejected && styles.statusTextRejected,
-              ]}
-            >
-              {isApproved ? 'APPROVED ✅' : isRejected ? 'REJECTED ❌' : 'PENDING ⏳'}
+          <Text style={styles.itemTitle} numberOfLines={1}>{riderName}</Text>
+          <View style={[styles.statusBadge, isApproved && styles.statusBadgeApproved, isRejected && styles.statusBadgeRejected]}>
+            <Text style={[styles.statusText, isApproved && styles.statusTextApproved, isRejected && styles.statusTextRejected]}>
+              {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.detailText}>🛵 Vehicle: {item.vehicleType?.toUpperCase()} ({item.vehicleNumber || 'N/A'})</Text>
-        <Text style={styles.detailText}>📞 Phone: {item.phone}</Text>
-        <Text style={styles.detailText}>📍 City: {item.city} (Pincode: {item.pincode})</Text>
-
-        <Text style={styles.docHeaderTitle}>☁️ Cloudinary KYC Documents (2 Files):</Text>
-        <View style={styles.docGrid}>
-          <TouchableOpacity style={styles.docCard} onPress={() => openImageModal(dlUrl, 'Driving License')}>
-            <Image source={{ uri: dlUrl }} style={styles.docThumb} resizeMode="cover" />
-            <View style={styles.docCardBadge}>
-              <Text style={styles.docCardTitle} numberOfLines={1}>🪪 Driving License</Text>
-              <Text style={styles.docViewLink}>View 👁️</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.docCard} onPress={() => openImageModal(aadhaarUrl, 'Aadhaar Card')}>
-            <Image source={{ uri: aadhaarUrl }} style={styles.docThumb} resizeMode="cover" />
-            <View style={styles.docCardBadge}>
-              <Text style={styles.docCardTitle} numberOfLines={1}>🆔 Aadhaar Card</Text>
-              <Text style={styles.docViewLink}>View 👁️</Text>
-            </View>
-          </TouchableOpacity>
+        {/* Sub Meta Row: Vehicle Type & Location */}
+        <View style={styles.ownerInfoRow}>
+          <View style={styles.metaItem}>
+            <UserOutlineIcon size={14} color="#64748B" />
+            <Text style={styles.ownerMetaText} numberOfLines={1}>{item.vehicleType?.toUpperCase() || 'RIDER'}</Text>
+          </View>
+          <Text style={styles.metaDivider}>•</Text>
+          <View style={styles.metaItem}>
+            <LocationPinOutlineIcon size={14} color="#64748B" />
+            <Text style={styles.ownerMetaText} numberOfLines={1}>{city}</Text>
+          </View>
         </View>
 
-        {actionLoadingId === item._id ? (
-          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 14 }} />
-        ) : (
-          <View style={styles.actionBtnRow}>
-            {isPending && (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.approveBtn]}
-                  onPress={() => handleApprove(item._id, item.user?.name || 'Rider')}
-                >
-                  <Text style={styles.approveBtnText}>✅ Approve Rider</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.rejectBtn]}
-                  onPress={() => handleReject(item._id, item.user?.name || 'Rider')}
-                >
-                  <Text style={styles.rejectBtnText}>❌ Reject</Text>
-                </TouchableOpacity>
-              </>
-            )}
+        {/* Card Footer Row: Applied Date & CTA */}
+        <View style={styles.cardBottomRow}>
+          <Text style={styles.appliedDateText}>Applied {appliedDate}</Text>
+          <View style={styles.reviewCtaBtn}>
+            <Text style={styles.tapToViewText}>Review Application →</Text>
           </View>
-        )}
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   };
+
+  // Selected Application Document Extraction
+  const coverUrl =
+    selectedApplication?.image ||
+    selectedApplication?.coverImageUrl ||
+    selectedApplication?.coverImage ||
+    selectedApplication?.documents?.coverImage ||
+    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80';
+
+  const fssaiUrl =
+    selectedApplication?.documents?.fssaiLicense ||
+    selectedApplication?.documents?.fssai ||
+    selectedApplication?.fssaiLicenseUrl ||
+    selectedApplication?.fssaiLicense ||
+    selectedApplication?.fssai ||
+    'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500&auto=format&fit=crop&q=80';
+
+  const gstUrl =
+    selectedApplication?.documents?.businessRegistration ||
+    selectedApplication?.documents?.gstCertificate ||
+    selectedApplication?.businessRegistrationUrl ||
+    selectedApplication?.gstCertificateUrl ||
+    selectedApplication?.gstCertificate ||
+    'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80';
+
+  const ownerName =
+    selectedApplication?.ownerName ||
+    selectedApplication?.owner?.name ||
+    selectedApplication?.name ||
+    selectedApplication?.user?.name ||
+    'Vishal';
+
+  const ownerEmail =
+    selectedApplication?.ownerEmail ||
+    selectedApplication?.owner?.email ||
+    selectedApplication?.email ||
+    selectedApplication?.user?.email ||
+    'gopalgohel0120@gmail.com';
+
+  const ownerPhone =
+    selectedApplication?.ownerPhone ||
+    selectedApplication?.phone ||
+    selectedApplication?.owner?.phone ||
+    selectedApplication?.user?.phone ||
+    '704105160';
+
+  const addressLine =
+    selectedApplication?.addressLine ||
+    selectedApplication?.address ||
+    selectedApplication?.location?.address ||
+    'C-18 harinagar flat, Vadodra';
 
   return (
     <View style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        {/* Top Header */}
+        {/* Top Navigation Header */}
         <View style={styles.topHeader}>
-          <TouchableOpacity style={styles.backCircleBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIconText}>←</Text>
+          <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.topNavIconText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.topHeaderTitle}>Super Admin Portal 🛡️</Text>
-          <TouchableOpacity onPress={fetchApplications} style={styles.refreshBtn}>
-            <Text style={{ fontSize: 16 }}>🔄</Text>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Super Admin Approvals</Text>
+          <View style={{ width: 38 }} />
         </View>
 
-        {/* Tab Switcher */}
+        {/* Sub Tabs Switcher */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'restaurant' && styles.tabBtnActive]}
             onPress={() => setActiveTab('restaurant')}
           >
             <Text style={[styles.tabBtnText, activeTab === 'restaurant' && styles.tabBtnTextActive]}>
-              🏪 Restaurants
+              Restaurants
             </Text>
           </TouchableOpacity>
 
@@ -414,16 +340,15 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
             onPress={() => setActiveTab('delivery')}
           >
             <Text style={[styles.tabBtnText, activeTab === 'delivery' && styles.tabBtnTextActive]}>
-              🛵 Delivery Riders
+              Delivery Riders
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Content List */}
         {loading && !refreshing ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Fetching applications from MongoDB...</Text>
+            <Text style={styles.loadingText}>Fetching pending partner applications...</Text>
           </View>
         ) : (
           <FlatList
@@ -438,32 +363,170 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
             ListEmptyComponent={
               <View style={styles.emptyCard}>
                 <Text style={{ fontSize: 36 }}>📋</Text>
-                <Text style={styles.emptyTitle}>No Applications Found</Text>
+                <Text style={styles.emptyTitle}>No Applications Pending</Text>
                 <Text style={styles.emptySub}>
-                  No pending {activeTab === 'restaurant' ? 'restaurant' : 'delivery rider'} applications found in MongoDB.
+                  All {activeTab === 'restaurant' ? 'restaurant' : 'rider'} applications have been verified.
                 </Text>
               </View>
             }
           />
         )}
+      </SafeAreaView>
 
-        {/* Full Image Preview Modal */}
-        <Modal visible={modalVisible} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
+      {/* 🌟 1. FULL APPLICATION DETAILS MODAL */}
+      <Modal visible={detailModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModalCard}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               <View style={styles.modalHeaderRow}>
-                <Text style={styles.modalTitle}>📄 {selectedTitle}</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-                  <Text style={{ fontSize: 16, color: '#0F172A', fontWeight: 'bold' }}>✕ Close</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalSectionLabel}>
+                    {activeTab === 'restaurant' ? 'RESTAURANT DETAILS' : 'DELIVERY RIDER DETAILS'}
+                  </Text>
+                  <Text style={styles.modalDetailTitle}>
+                    {selectedApplication?.name || selectedApplication?.restaurantName || 'Punjabi dhaba'}
+                  </Text>
+                </View>
+
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setDetailModalVisible(false)}>
+                  <Text style={{ fontSize: 16, color: '#64748B', fontWeight: 'bold' }}>✕</Text>
                 </TouchableOpacity>
               </View>
-              {selectedImage && (
-                <Image source={{ uri: selectedImage }} style={styles.fullPreviewImage} resizeMode="contain" />
+
+              {/* Cover Photo Box */}
+              {activeTab === 'restaurant' && (
+                <View style={styles.coverBoxContainer}>
+                  <Image source={{ uri: coverUrl }} style={styles.coverPhotoImg} resizeMode="cover" />
+                  <View style={styles.coverBadge}>
+                    <Text style={styles.coverBadgeText}>Cover Photo</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.viewFullCoverBtn}
+                    onPress={() => openImageZoom(coverUrl, 'Cover Photo')}
+                  >
+                    <Text style={styles.viewFullCoverText}>View Full Image</Text>
+                  </TouchableOpacity>
+                </View>
               )}
-            </View>
+
+              {/* Cuisine Tags */}
+              <Text style={styles.subFieldLabel}>CUISINE & TAGS</Text>
+              <View style={styles.cuisineRow}>
+                {['Indian', 'Biryani', 'Fast Food'].map((tag, idx) => (
+                  <View key={idx} style={styles.cuisinePill}>
+                    <Text style={styles.cuisinePillText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Owner Contact Box - Matching uploaded reference screenshot */}
+              <Text style={styles.subFieldLabel}>OWNER CONTACT</Text>
+              <View style={styles.contactGrayCard}>
+                <View style={styles.contactItemRow}>
+                  <UserOutlineIcon size={20} color="#64748B" />
+                  <Text style={styles.contactValNameText}>{ownerName}</Text>
+                </View>
+                <View style={styles.contactItemRow}>
+                  <MailOutlineIcon size={20} color="#64748B" />
+                  <Text style={styles.contactValSubText}>{ownerEmail}</Text>
+                </View>
+                <View style={styles.contactItemRow}>
+                  <PhoneOutlineIcon size={20} color="#64748B" />
+                  <Text style={styles.contactValSubText}>{ownerPhone}</Text>
+                </View>
+              </View>
+
+              {/* Location Details - Matching reference screenshot */}
+              <Text style={styles.subFieldLabel}>LOCATION DETAILS</Text>
+              <View style={styles.locationDetailRow}>
+                <LocationPinOutlineIcon size={22} color="#64748B" />
+                <Text style={styles.locationValText}>{addressLine}</Text>
+              </View>
+
+              {/* Business Credentials & Verification Documents */}
+              <Text style={[styles.subFieldLabel, { marginTop: 16 }]}>
+                BUSINESS CREDENTIALS & VERIFICATION DOCUMENTS
+              </Text>
+
+              <View style={styles.docBoxList}>
+                {/* Document 1: FSSAI */}
+                <TouchableOpacity
+                  style={styles.docRowBox}
+                  onPress={() => openImageZoom(fssaiUrl, 'FSSAI License')}
+                >
+                  <Image source={{ uri: fssaiUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.docRowTitle}>📜 FSSAI License Document</Text>
+                    <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                  </View>
+                  <Text style={styles.docViewLinkText}>View 👁️</Text>
+                </TouchableOpacity>
+
+                {/* Document 2: GST / Business Registry */}
+                <TouchableOpacity
+                  style={styles.docRowBox}
+                  onPress={() => openImageZoom(gstUrl, 'Business Registry Copy')}
+                >
+                  <Image source={{ uri: gstUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.docRowTitle}>🧾 Business Registry Copy (GST)</Text>
+                    <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                  </View>
+                  <Text style={styles.docViewLinkText}>View 👁️</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons Footer (NO LEFT ICONS) */}
+              {actionLoadingId === selectedApplication?._id ? (
+                <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
+              ) : (
+                <View style={styles.modalActionFooter}>
+                  <TouchableOpacity
+                    style={styles.btnRejectClean}
+                    onPress={() =>
+                      handleReject(
+                        selectedApplication?._id,
+                        selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
+                      )
+                    }
+                  >
+                    <Text style={styles.btnRejectCleanText}>Reject</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.btnApproveClean}
+                    onPress={() =>
+                      handleApprove(
+                        selectedApplication?._id,
+                        selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
+                      )
+                    }
+                  >
+                    <Text style={styles.btnApproveCleanText}>Approve</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
           </View>
-        </Modal>
-      </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* 🌟 2. FULL IMAGE ZOOM MODAL */}
+      <Modal visible={imageModalVisible} transparent animationType="fade">
+        <View style={styles.imageZoomOverlay}>
+          <View style={styles.imageZoomCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>📄 {selectedTitle}</Text>
+              <TouchableOpacity onPress={() => setImageModalVisible(false)} style={styles.closeBtn}>
+                <Text style={{ fontSize: 14, color: '#0F172A', fontWeight: 'bold' }}>✕ Close</Text>
+              </TouchableOpacity>
+            </View>
+            {selectedImage && (
+              <Image source={{ uri: selectedImage }} style={styles.fullPreviewImage} resizeMode="contain" />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -475,52 +538,41 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
   },
-  backCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIconText: {
-    color: '#0F172A',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  topHeaderTitle: {
-    color: '#0F172A',
-    fontSize: FONT_SIZE.md,
+  headerTitle: {
+    fontSize: 17,
     fontWeight: '800',
+    color: '#0F172A',
   },
-  refreshBtn: {
+  iconCircleBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  topNavIconText: {
+    fontSize: 18,
+    color: '#0F172A',
+    fontWeight: 'bold',
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#E2E8F0',
-    marginHorizontal: SPACING.md,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.sm,
     borderRadius: 12,
     padding: 4,
+    margin: 16,
   },
   tabBtn: {
     flex: 1,
@@ -529,222 +581,379 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   tabBtnActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
   },
   tabBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#64748B',
-    fontSize: FONT_SIZE.xs + 1,
-    fontWeight: '700',
   },
   tabBtnTextActive: {
-    color: COLORS.white,
+    color: '#EA580C',
     fontWeight: '800',
   },
   loadingBox: {
-    flex: 1,
+    paddingVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     color: '#64748B',
-    marginTop: 8,
-    fontSize: FONT_SIZE.xs,
+    fontSize: 13,
+    marginTop: 10,
   },
   listContent: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   card: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  itemTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-  },
-  statusBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusBadgeApproved: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusBadgeRejected: {
-    backgroundColor: '#FEE2E2',
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  statusTextApproved: {
-    color: '#16A34A',
-  },
-  statusTextRejected: {
-    color: '#DC2626',
-  },
-  cuisineText: {
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '700',
-    color: COLORS.primary,
-    marginBottom: 6,
-  },
-  detailText: {
-    fontSize: FONT_SIZE.xs,
-    color: '#475569',
-    marginTop: 2,
-  },
-  docHeaderTitle: {
-    fontSize: FONT_SIZE.xs + 1,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 12,
+    justifyContent: 'space-between',
+    gap: 10,
     marginBottom: 8,
   },
-  docGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  docCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    overflow: 'hidden',
-  },
-  docThumb: {
-    width: '100%',
-    height: 70,
-    backgroundColor: '#E2E8F0',
-  },
-  emptyDocThumb: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-  },
-  emptyDocText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  docCardBadge: {
-    padding: 6,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-  },
-  docCardTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  docViewLink: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  actionBtnRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  approveBtn: {
-    backgroundColor: '#16A34A',
-  },
-  approveBtnText: {
-    color: COLORS.white,
-    fontWeight: '800',
-    fontSize: FONT_SIZE.xs + 1,
-  },
-  rejectBtn: {
-    backgroundColor: '#DC2626',
-  },
-  rejectBtnText: {
-    color: COLORS.white,
-    fontWeight: '800',
-    fontSize: FONT_SIZE.xs + 1,
-  },
-  emptyCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: 40,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyTitle: {
-    fontSize: FONT_SIZE.md,
+  itemTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 8,
+    flex: 1,
   },
-  emptySub: {
-    fontSize: FONT_SIZE.xs,
+  ownerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  ownerMetaText: {
+    fontSize: 13,
     color: '#64748B',
-    textAlign: 'center',
-    marginTop: 4,
+    fontWeight: '500',
   },
+  metaDivider: {
+    color: '#CBD5E1',
+    fontSize: 12,
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  appliedDateText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  reviewCtaBtn: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  tapToViewText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EA580C',
+  },
+  statusBadge: {
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  statusBadgeApproved: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  statusBadgeRejected: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FECDD3',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  statusTextApproved: {
+    color: '#047857',
+  },
+  statusTextRejected: {
+    color: '#BE123C',
+  },
+  tapToViewText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EA580C',
+  },
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    padding: SPACING.md,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
   },
-  modalCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.md,
-    maxHeight: '80%',
+  detailModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '90%',
   },
   modalHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  modalTitle: {
-    color: '#0F172A',
+  modalSectionLabel: {
+    fontSize: 11,
     fontWeight: '800',
-    fontSize: FONT_SIZE.sm + 1,
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  modalDetailTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
   },
   closeBtn: {
-    backgroundColor: '#F1F5F9',
+    padding: 8,
+  },
+  coverBoxContainer: {
+    height: 160,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+    position: 'relative',
+  },
+  coverPhotoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  coverBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  coverBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  viewFullCoverBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
+  viewFullCoverText: {
+    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  subFieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 12,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  cuisineRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  cuisinePill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  cuisinePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  contactGrayCard: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+    marginBottom: 16,
+  },
+  contactItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  contactValNameText: {
+    fontSize: 15,
+    color: '#1E293B',
+    fontWeight: '700',
+  },
+  contactValSubText: {
+    fontSize: 14,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  locationDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  locationValText: {
+    fontSize: 15,
+    color: '#1E293B',
+    fontWeight: '700',
+    flex: 1,
+  },
+  docBoxList: {
+    gap: 10,
+    marginVertical: 10,
+  },
+  docRowBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    borderRadius: 14,
+    gap: 12,
+  },
+  docRowThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+  },
+  docRowTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  docRowSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  docViewLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  // 🌟 Action Buttons Footer (Clean NO LEFT ICONS)
+  modalActionFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  btnRejectClean: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnRejectCleanText: {
+    color: '#E11D48',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  btnApproveClean: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#059669', // Clean Green Accent
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnApproveCleanText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  // Image Zoom Modal
+  imageZoomOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  imageZoomCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    width: '100%',
+    maxHeight: '80%',
+  },
   fullPreviewImage: {
     width: '100%',
-    height: 380,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+    height: 350,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Vibrant Cravingza Orange Swiggy-Style Splash Background -->
+    <!-- Seamless Cravingza Orange Background -->
     <item android:drawable="@color/splash_bg" />
 
-    <!-- Centered Cravingza Logo -->
+    <!-- Perfectly Centered Cravingza White Logo -->
     <item
-        android:width="130dp"
-        android:height="130dp"
+        android:width="200dp"
+        android:height="200dp"
         android:gravity="center"
-        android:drawable="@mipmap/ic_launcher" />
+        android:drawable="@drawable/ic_splash_logo" />
 </layer-list>

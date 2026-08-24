@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import RazorpayCheckout from 'react-native-razorpay';
@@ -27,9 +28,10 @@ import { useAuth } from '../../../context/AuthContext';
 
 import { useAddress } from '../../../context/AddressContext';
 import { useCart } from '../../../context/CartContext';
+import { setSharedOrders } from '../../../services/orderSyncStore';
 
 export const CheckoutScreen = ({ route, navigation }: any) => {
-  const { selectedAddress, savedAddresses, setSelectedAddress } = useAddress();
+  const { selectedAddress, savedAddresses, setSelectedAddress, fetchUserAddresses, saveNewAddress } = useAddress();
   const { clearCart } = useCart();
   const restaurantId = route?.params?.restaurantId || '6a71cf90ab29fa88687723b4';
   const restaurantName = route?.params?.restaurantName || "Jassi De Parathe";
@@ -42,27 +44,57 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     ]
   );
 
-  // Address & Payment States (Pre-filled only if global selectedAddress exists, otherwise blank)
+  // Address Selection Mode: 'SAVED' (select from profile addresses) vs 'CUSTOM' (deliver to another place)
+  const [addressMode, setAddressMode] = useState<'SAVED' | 'CUSTOM'>('SAVED');
+  const [saveCustomToProfile, setSaveCustomToProfile] = useState<boolean>(true);
+
+  // Address & Payment States (Pre-filled from profile default address)
   const [street, setStreet] = useState(selectedAddress?.addressLine || '');
   const [city, setCity] = useState(selectedAddress?.city || '');
   const [zipCode, setZipCode] = useState(selectedAddress?.pincode || '');
   const [addressType, setAddressType] = useState<string>(selectedAddress?.label || 'Home');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | 'UPI'>('COD');
 
-  // Auto Sync Selected Address from Profile Context
+  // Auto-fetch & Sync Saved User Addresses from MongoDB Profile on Checkout Screen Load
   React.useEffect(() => {
-    if (selectedAddress?.addressLine) {
-      setStreet(selectedAddress.addressLine);
-      if (selectedAddress.city) setCity(selectedAddress.city);
-      if (selectedAddress.pincode) setZipCode(selectedAddress.pincode);
-      if (selectedAddress.label) setAddressType(selectedAddress.label);
+    const initAddresses = async () => {
+      await fetchUserAddresses();
+    };
+    initAddresses();
+  }, []);
+
+  // Pre-fill delivery address from default profile address
+  React.useEffect(() => {
+    if (savedAddresses && savedAddresses.length > 0 && addressMode === 'SAVED') {
+      const defaultAddr = selectedAddress || savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+      if (defaultAddr) {
+        setStreet(defaultAddr.addressLine || '');
+        setCity(defaultAddr.city || '');
+        setZipCode(defaultAddr.pincode || '');
+        setAddressType(defaultAddr.label || 'Home');
+        if (!selectedAddress) setSelectedAddress(defaultAddr);
+      }
+    } else if (selectedAddress && addressMode === 'SAVED') {
+      setStreet(selectedAddress.addressLine || '');
+      setCity(selectedAddress.city || '');
+      setZipCode(selectedAddress.pincode || '');
+      setAddressType(selectedAddress.label || 'Home');
     }
-  }, [selectedAddress]);
+  }, [savedAddresses, selectedAddress, addressMode]);
 
   // Promo Code States
   const [couponInput, setCouponInput] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+
+  // Auto-apply Restaurant Discount Offer on Checkout Load
+  React.useEffect(() => {
+    if (!appliedCoupon && itemSubtotal >= 199) {
+      const autoDiscount = Math.min(150, Math.round(itemSubtotal * 0.3));
+      setDiscountAmount(autoDiscount);
+      setAppliedCoupon('RESTAURANT30');
+    }
+  }, [itemSubtotal]);
 
   const [loading, setLoading] = useState(false);
 
@@ -130,24 +162,27 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
   // 🚀 Place Order & Payment Trigger (Razorpay Online vs COD)
   const { currentUser } = useAuth();
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [checkoutPhone, setCheckoutPhone] = useState(currentUser?.phone || '');
 
   const handlePlaceOrder = async () => {
-    let firebaseUser = null;
-    try {
-      firebaseUser = getAuth().currentUser;
-    } catch (e) {}
-
+    const firebaseUser = getAuth().currentUser;
     const activeUser = currentUser || firebaseUser;
 
     if (!activeUser) {
       Alert.alert(
-        'Login Required 🔑',
-        'Please sign in to place your food order.',
+        'Login Required',
+        'Please login to your account to place food orders and proceed to checkout.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Login / Sign Up 🔑', onPress: () => navigation.navigate('Login') },
+          { text: 'Login / Sign Up', onPress: () => navigation.navigate('Login') },
         ]
       );
+      return;
+    }
+
+    if (!currentUser?.phone && !checkoutPhone.trim()) {
+      setPhoneModalVisible(true);
       return;
     }
 
@@ -163,6 +198,21 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
     try {
       setLoading(true);
+
+      // 🏠 Save custom delivery address to user MongoDB profile dynamically
+      if (addressMode === 'CUSTOM' && saveCustomToProfile && street.trim()) {
+        try {
+          await saveNewAddress({
+            label: addressType || 'Other',
+            addressLine: street.trim(),
+            city: city.trim(),
+            pincode: zipCode.trim(),
+            isDefault: false,
+          });
+        } catch (addrErr) {
+          console.log('Custom address auto-save note:', addrErr);
+        }
+      }
 
       // 🔄 Pre-sync cart items to Render backend Database so Cart.findOne() succeeds
       try {
@@ -311,6 +361,10 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
       const createdId = createdOrder?._id || createdOrder?.id || 'ord_101';
       const createdNum = createdOrder?.orderNumber || '#CRV-8942';
 
+      try {
+        setSharedOrders([createdOrder]);
+      } catch (e) {}
+
       // Clear global cart after successful order
       clearCart();
 
@@ -396,66 +450,122 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
         {/* Delivery Address Card */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
-
-          <View style={styles.addressTypeRow}>
-            {['Home', 'Work', 'Other'].map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.addressTypeChip, addressType === t && styles.addressTypeChipActive]}
-                onPress={() => {
-                  setAddressType(t);
-                  const found = savedAddresses.find((a) => a.label.toLowerCase() === t.toLowerCase());
-                  if (found) {
-                    setStreet(found.addressLine);
-                    setCity(found.city);
-                    if (found.pincode) setZipCode(found.pincode);
-                    setSelectedAddress(found);
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles.addressTypeChipText,
-                    addressType === t && styles.addressTypeChipTextActive,
-                  ]}
-                >
-                  {t === 'Home' ? '🏠 Home' : t === 'Work' ? '🏢 Work' : '📍 Other'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
+            {savedAddresses.length > 0 && (
+              <View style={styles.savedBadgePill}>
+                <Text style={styles.savedBadgeText}>{savedAddresses.length} Profile Addresses</Text>
+              </View>
+            )}
           </View>
 
-          <Text style={styles.inputLabel}>Street / Building Address</Text>
-          <TextInput
-            style={styles.textInput}
-            value={street}
-            onChangeText={setStreet}
-            placeholder="Enter street name"
-            placeholderTextColor="#94A3B8"
-          />
+          {/* Address Selection Pills (Saved Addresses + Custom Address Option) */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addressPillScroll}>
+            {savedAddresses.map((addr, idx) => {
+              const isSelected =
+                addressMode === 'SAVED' &&
+                (selectedAddress?.id === addr.id || (street === addr.addressLine && addressType === addr.label));
+              const icon = addr.label?.toLowerCase().includes('home')
+                ? '🏠'
+                : addr.label?.toLowerCase().includes('work')
+                ? '🏢'
+                : '📍';
+              return (
+                <TouchableOpacity
+                  key={addr.id || addr._id || `addr_${idx}`}
+                  style={[styles.addressPill, isSelected && styles.addressPillActive]}
+                  onPress={() => {
+                    setAddressMode('SAVED');
+                    setSelectedAddress(addr);
+                    setStreet(addr.addressLine);
+                    setCity(addr.city);
+                    if (addr.pincode) setZipCode(addr.pincode);
+                    setAddressType(addr.label);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addressPillIcon}>{icon}</Text>
+                  <View>
+                    <Text style={[styles.addressPillTitle, isSelected && styles.addressPillTextActive]}>
+                      {addr.label} {addr.isDefault ? '• Default' : ''}
+                    </Text>
+                    <Text style={[styles.addressPillSub, isSelected && styles.addressPillSubActive]} numberOfLines={1}>
+                      {addr.addressLine}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inputLabel}>City</Text>
-              <TextInput
-                style={styles.textInput}
-                value={city}
-                onChangeText={setCity}
-                placeholder="City"
-                placeholderTextColor="#94A3B8"
-              />
+            {/* Option to Deliver to a Different Location / New Custom Address */}
+            <TouchableOpacity
+              style={[styles.addressPill, addressMode === 'CUSTOM' && styles.addressPillActive]}
+              onPress={() => {
+                setAddressMode('CUSTOM');
+                setAddressType('Other');
+                setStreet('');
+                setCity('');
+                setZipCode('');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addressPillIcon}>➕</Text>
+              <View>
+                <Text style={[styles.addressPillTitle, addressMode === 'CUSTOM' && styles.addressPillTextActive]}>
+                  Different Location
+                </Text>
+                <Text style={[styles.addressPillSub, addressMode === 'CUSTOM' && styles.addressPillSubActive]}>
+                  Deliver to another address
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Form Fields for Delivery Address */}
+          <View style={{ marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.inputLabel}>
+                {addressMode === 'CUSTOM' ? 'Custom Delivery Address' : `Deliver to ${addressType}`}
+              </Text>
+              {addressMode === 'CUSTOM' && (
+                <TouchableOpacity onPress={() => setSaveCustomToProfile(!saveCustomToProfile)}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: saveCustomToProfile ? COLORS.primary : '#64748B' }}>
+                    {saveCustomToProfile ? '✓ Save to Profile' : '+ Save to Profile?'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={{ width: 110 }}>
-              <Text style={styles.inputLabel}>Pincode</Text>
-              <TextInput
-                style={styles.textInput}
-                value={zipCode}
-                onChangeText={setZipCode}
-                keyboardType="numeric"
-                placeholder="Pincode"
-                placeholderTextColor="#94A3B8"
-              />
+
+            <TextInput
+              style={styles.textInput}
+              value={street}
+              onChangeText={setStreet}
+              placeholder="House / Flat No., Building, Street Name"
+              placeholderTextColor="#94A3B8"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>City</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="City"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+              <View style={{ width: 110 }}>
+                <Text style={styles.inputLabel}>Pincode</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={zipCode}
+                  onChangeText={setZipCode}
+                  keyboardType="numeric"
+                  placeholder="Pincode"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -563,6 +673,49 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* 📱 Phone Number Verification Modal for Delivery Partner Contact */}
+      <Modal visible={phoneModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>📱 Contact Phone Number</Text>
+            <Text style={styles.modalSub}>
+              Please enter your mobile phone number so our delivery partner can contact you when arriving with your order.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Enter mobile phone (e.g. +91 98765 43210)"
+              placeholderTextColor="#94A3B8"
+              keyboardType="phone-pad"
+              value={checkoutPhone}
+              onChangeText={setCheckoutPhone}
+            />
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity style={styles.btnCancel} onPress={() => setPhoneModalVisible(false)}>
+                <Text style={styles.btnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSavePhone}
+                onPress={() => {
+                  if (!checkoutPhone.trim()) {
+                    Alert.alert('Validation Error', 'Please enter your phone number.');
+                    return;
+                  }
+                  setPhoneModalVisible(false);
+                  if (currentUser) {
+                    setAuthUser({ ...currentUser, phone: checkoutPhone.trim() });
+                  }
+                  handlePlaceOrder();
+                }}
+              >
+                <Text style={styles.btnSavePhoneText}>Save & Order 🚀</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -848,5 +1001,124 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: FONT_SIZE.sm,
     fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: SPACING.lg,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: SPACING.md,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    marginBottom: SPACING.md,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  btnCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  btnSavePhone: {
+    flex: 1.5,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  btnSavePhoneText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  savedBadgePill: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  savedBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  addressPillScroll: {
+    gap: 8,
+    paddingVertical: 6,
+  },
+  addressPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    maxWidth: 200,
+  },
+  addressPillActive: {
+    backgroundColor: '#FFF7ED',
+    borderColor: COLORS.primary,
+  },
+  addressPillIcon: {
+    fontSize: 18,
+  },
+  addressPillTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  addressPillSub: {
+    fontSize: 10,
+    color: '#64748B',
+  },
+  addressPillTextActive: {
+    color: COLORS.primary,
+  },
+  addressPillSubActive: {
+    color: '#C2410C',
   },
 });

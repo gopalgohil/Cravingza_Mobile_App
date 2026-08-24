@@ -16,9 +16,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getRestaurantByIdApi, createOrderApi } from '../services/customerApi';
 import { useCart } from '../../../context/CartContext';
+import { RestaurantDetailSkeleton } from '../../../components/ui/SkeletonPlaceholder';
+import { isDishOutOfStock, subscribeMenuStockSync } from '../../../services/menuStockStore';
 
 export interface MenuDish {
   id: string;
@@ -100,6 +103,11 @@ export const RestaurantDetailScreen = ({ route, navigation }: any) => {
     } else {
       setLoading(false);
     }
+
+    const unsubscribeStock = subscribeMenuStockSync(() => {
+      setMenuDishes((prev) => [...prev]);
+    });
+    return () => unsubscribeStock();
   }, [restaurantId]);
 
   const fetchRestaurantDetails = async () => {
@@ -240,8 +248,16 @@ export const RestaurantDetailScreen = ({ route, navigation }: any) => {
         <View style={styles.promoOfferBox}>
           <Text style={styles.promoOfferIcon}>🏷️</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.promoOfferTitle}>30% OFF up to ₹150</Text>
-            <Text style={styles.promoOfferSub}>Use code CRAVE30 | On orders above ₹300</Text>
+            <Text style={styles.promoOfferTitle}>
+              {restaurantData?.offerLabel
+                ? restaurantData.offerLabel
+                : (restaurantData?.offerDiscountPercentage
+                    ? `${restaurantData.offerDiscountPercentage}% OFF up to ₹${restaurantData.offerMaxDiscount || 150}`
+                    : '30% OFF up to ₹150')}
+            </Text>
+            <Text style={styles.promoOfferSub}>
+              {`Use code CRAVE30 | On orders above ₹${restaurantData?.offerMinOrderAmount || 199}`}
+            </Text>
           </View>
         </View>
 
@@ -273,6 +289,15 @@ export const RestaurantDetailScreen = ({ route, navigation }: any) => {
   // 🎨 FlatList Item Renderer (Each Dish Card)
   const renderDishCard = ({ item }: { item: MenuDish }) => {
     const quantity = cartItems[item.id] || 0;
+    const isOut =
+      item.isOutOfStock === true ||
+      item.inStock === false ||
+      (item as any).isAvailable === false ||
+      (item as any).available === false ||
+      String((item as any).status || '').toLowerCase() === 'out_of_stock' ||
+      String((item as any).status || '').toLowerCase() === 'unavailable' ||
+      isDishOutOfStock(item.id) ||
+      isDishOutOfStock(item.name);
 
     return (
       <View key={item.id} style={styles.dishCard}>
@@ -291,19 +316,34 @@ export const RestaurantDetailScreen = ({ route, navigation }: any) => {
 
           <Text style={styles.dishName}>{item.name}</Text>
           <Text style={styles.dishPrice}>₹{item.price.toFixed(2)}</Text>
-          <Text style={styles.dishDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
+
+          {isOut ? (
+            <View style={styles.leftOutOfStockBadge}>
+              <Text style={styles.leftOutOfStockText}>🔴 Out of stock</Text>
+            </View>
+          ) : (
+            <Text style={styles.dishDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+          )}
         </View>
 
         {/* Dish Image & Add to Cart Counter Button */}
         <View style={styles.dishRightAction}>
           {item.image && (
-            <Image source={{ uri: item.image }} style={styles.dishImage} resizeMode="cover" />
+            <Image
+              source={{ uri: item.image }}
+              style={styles.dishImage}
+              resizeMode="cover"
+            />
           )}
 
           <View style={styles.cartActionWrapper}>
-            {quantity === 0 ? (
+            {isOut ? (
+              <View style={styles.outOfStockDisabledPill}>
+                <Text style={styles.outOfStockDisabledPillText}>OUT OF STOCK</Text>
+              </View>
+            ) : quantity === 0 ? (
               <TouchableOpacity
                 style={styles.addBtn}
                 onPress={() => handleAddToCart(item.id)}
@@ -355,24 +395,27 @@ export const RestaurantDetailScreen = ({ route, navigation }: any) => {
             <Text style={styles.topNavIconText}>←</Text>
           </TouchableOpacity>
 
-          <View style={styles.rightNavIcons}>
-            <TouchableOpacity style={styles.iconCircleBtn} onPress={handlePlaceOrder}>
-              <Text style={styles.topNavIconText}>🛒</Text>
-              {cartCount > 0 && (
-                <View style={styles.topCartBadge}>
-                  <Text style={styles.topCartBadgeText}>{cartCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.iconCircleBtn}
+            onPress={handlePlaceOrder}
+            activeOpacity={0.8}
+          >
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <Circle cx="9" cy="21" r="1" />
+              <Circle cx="20" cy="21" r="1" />
+              <Path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
+            </Svg>
+            {cartCount > 0 && (
+              <View style={styles.topCartBadge}>
+                <Text style={styles.topCartBadgeText}>{cartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* 🏆 Industry FlatList for Food Menu Dishes */}
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Fetching menu dishes...</Text>
-          </View>
+          <RestaurantDetailSkeleton />
         ) : (
           <FlatList
             style={styles.flatListStyle}
@@ -854,6 +897,15 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 16,
   },
+  leftOutOfStockBadge: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  leftOutOfStockText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
   dishRightAction: {
     alignItems: 'center',
     position: 'relative',
@@ -863,6 +915,34 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
+  },
+  outOfStockDisabledPill: {
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  outOfStockDisabledPillText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  outOfStockDisabledPill: {
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  outOfStockDisabledPillText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   cartActionWrapper: {
     marginTop: -14,

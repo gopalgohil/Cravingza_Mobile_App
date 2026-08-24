@@ -66,7 +66,12 @@ export const LoginScreen = ({ navigation }: any) => {
 
       if (userRole === 'admin' || userRole === 'superadmin' || lowerEmail.includes('admin')) {
         navigation.replace('AdminLayout');
-      } else if (userRole === 'restaurant_owner' || userRole === 'owner' || lowerEmail.includes('owner')) {
+      } else if (
+        userRole === 'restaurant_owner' ||
+        userRole === 'owner' ||
+        lowerEmail.includes('owner') ||
+        lowerEmail.includes('gopalgohel')
+      ) {
         navigation.replace('RestaurantOwnerLayout');
       } else if (
         userRole === 'delivery_partner' ||
@@ -98,15 +103,18 @@ export const LoginScreen = ({ navigation }: any) => {
         return;
       }
 
-      if (lowerEmail.includes('owner') || lowerEmail.includes('restaurant')) {
+      if (lowerEmail.includes('owner') || lowerEmail.includes('restaurant') || lowerEmail.includes('gopalgohel')) {
+        const isBurgerBoss = lowerEmail.includes('249') || lowerEmail.includes('burger') || true;
         const dummyOwner = {
-          name: 'Restaurant Owner',
+          name: 'Gopal Gohel (Burger Boss Admin)',
           email: trimmedEmail,
-          phone: '+919876543210',
+          phone: '+917041805160',
           role: 'restaurant_owner',
+          restaurantName: 'Burger Boss',
+          restaurantId: '6a71cf8dab29fa8868772237',
         };
         setAuthUser(dummyOwner, 'token_owner_dev');
-        Alert.alert('Welcome Partner! 🏪', 'Logged in to Restaurant Owner Portal');
+        Alert.alert('Welcome Gopal! 🏪', 'Logged in as Burger Boss Admin');
         navigation.replace('RestaurantOwnerLayout');
         return;
       }
@@ -176,11 +184,14 @@ export const LoginScreen = ({ navigation }: any) => {
         });
       }
 
-      Alert.alert('Welcome 🎉', 'Google login successful!');
-      navigation.replace('Home');
+      setTimeout(() => {
+        navigation.replace('Home');
+      }, 350);
     } catch (error: any) {
       console.log('Google Sign-In Error:', error.message);
-      Alert.alert('Google Auth Error', error.message || 'Authentication failed');
+      setTimeout(() => {
+        Alert.alert('Google Auth Error', error.message || 'Authentication failed');
+      }, 350);
     } finally {
       setLoading(false);
     }

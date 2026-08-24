@@ -9,6 +9,10 @@ import {
   OwnerMenuIcon,
   OwnerSettingsIcon,
   OwnerLogoutIcon,
+  OwnerOffersIcon,
+  OwnerAnalyticsIcon,
+  OwnerStarIcon,
+  OwnerStorefrontIcon,
 } from './RestaurantSidebarIcons';
 
 interface RestaurantSidebarDrawerProps {
@@ -17,6 +21,7 @@ interface RestaurantSidebarDrawerProps {
   activeTab: string;
   onSelectTab: (tabId: string) => void;
   onLogout: () => void;
+  onNavigateCustomerSite?: () => void;
   restaurantName?: string;
 }
 
@@ -26,29 +31,37 @@ export const RestaurantSidebarDrawer: React.FC<RestaurantSidebarDrawerProps> = (
   activeTab,
   onSelectTab,
   onLogout,
-  restaurantName = 'Cravingza Restaurant Partner',
+  onNavigateCustomerSite,
+  restaurantName = 'Burger Boss',
 }) => {
+  console.log('Rendering RestaurantSidebarDrawer, visible prop =', visible);
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', Icon: OwnerDashboardIcon },
-    { id: 'orders', label: 'Live Orders', Icon: OwnerOrdersIcon },
-    { id: 'menu', label: 'Food Menu', Icon: OwnerMenuIcon },
-    { id: 'settings', label: 'Store Settings', Icon: OwnerSettingsIcon },
+    { id: 'menu', label: 'Menu Management', Icon: OwnerMenuIcon },
+    { id: 'orders', label: 'Incoming Orders', Icon: OwnerOrdersIcon },
+    { id: 'offers', label: 'Offers & Coupons', Icon: OwnerOffersIcon },
+    { id: 'analytics', label: 'Analytics', Icon: OwnerAnalyticsIcon },
+    { id: 'reviews', label: 'Customer Reviews', Icon: OwnerStarIcon },
+    { id: 'settings', label: 'Settings', Icon: OwnerSettingsIcon },
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      hardwareAccelerated
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-
         <View style={styles.drawerContent}>
           <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'bottom']}>
-            {/* Header: restaurantAdmin Branding */}
+            {/* Header: Cravingza Partner Branding */}
             <View style={styles.drawerHeader}>
               <View style={styles.brandingBox}>
-                <View style={styles.badgePill}>
-                  <Text style={styles.badgePillText}>🏪 PARTNER PORTAL</Text>
-                </View>
-                <Text style={styles.brandTitle}>restaurantAdmin</Text>
+                <Text style={styles.brandTitle}>Cravingza Partner</Text>
                 <Text style={styles.restaurantSubText} numberOfLines={1}>
                   {restaurantName}
                 </Text>
@@ -57,12 +70,10 @@ export const RestaurantSidebarDrawer: React.FC<RestaurantSidebarDrawerProps> = (
 
             {/* Navigation Tabs List */}
             <ScrollView style={styles.navSection} showsVerticalScrollIndicator={false}>
-              <Text style={styles.sectionHeader}>NAVIGATION MENU</Text>
-
               {navItems.map((item) => {
                 const isActive = activeTab === item.id;
                 const IconComponent = item.Icon;
-                const activeColor = '#EA580C';
+                const activeColor = '#9A3412';
                 const inactiveColor = '#475569';
 
                 return (
@@ -88,15 +99,30 @@ export const RestaurantSidebarDrawer: React.FC<RestaurantSidebarDrawerProps> = (
               })}
             </ScrollView>
 
-            {/* Bottom Logout Area */}
+            {/* Bottom Customer Site & Logout Area */}
             <View style={styles.footerArea}>
+              {onNavigateCustomerSite && (
+                <TouchableOpacity
+                  style={styles.customerSiteBtn}
+                  onPress={() => {
+                    onClose();
+                    onNavigateCustomerSite();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <OwnerStorefrontIcon color="#9A3412" size={20} />
+                  <Text style={styles.customerSiteBtnText}>Customer Site</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.8}>
-                <OwnerLogoutIcon color="#DC2626" size={20} />
                 <Text style={styles.logoutBtnText}>Logout Partner Account</Text>
               </TouchableOpacity>
             </View>
           </SafeAreaView>
         </View>
+
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       </View>
     </Modal>
   );
@@ -205,6 +231,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     backgroundColor: '#FAFAFA',
+  },
+  customerSiteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  customerSiteBtnText: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: '900',
+    color: '#9A3412',
   },
   logoutBtn: {
     flexDirection: 'row',

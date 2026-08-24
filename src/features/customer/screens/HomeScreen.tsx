@@ -20,6 +20,8 @@ import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getRestaurantsApi } from '../services/customerApi';
 import { CATEGORIES } from '../constants/categories';
 import { apiClient } from '../../../services/apiClient';
+import { RestaurantCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
+import { subscribeCustomerNotif } from '../../../services/orderSyncStore';
 
 const renderNavIcon = (name: string, active: boolean) => {
   const color = active ? COLORS.primary : '#94A3B8';
@@ -142,6 +144,9 @@ export const HomeScreen = ({ navigation }: any) => {
             } else if (['delivered', 'completed'].includes(newSt)) {
               notifTitle = 'Order Delivered! 🎉';
               notifMsg = `Your order ${ordNum} from ${restName} has been delivered successfully. Enjoy your meal!`;
+            } else if (['cancelled', 'rejected'].includes(newSt)) {
+              notifTitle = 'Order Declined ❌';
+              notifMsg = `We're sorry, your order ${ordNum} was declined by ${restName}.`;
             }
 
             const newNotif = {
@@ -170,14 +175,19 @@ export const HomeScreen = ({ navigation }: any) => {
     }
   }, [prevOrderStatuses]);
 
-  // 🔹 Auto Poll for Customer Notifications every 6 seconds
+  // 🔹 Auto Poll for Customer Notifications every 6 seconds + Subscribe to Live Store Sync
   useEffect(() => {
     checkOrderNotifications();
-    const interval = setInterval(() => {
-      checkOrderNotifications();
-    }, 6000);
+    const interval = setInterval(checkOrderNotifications, 6000);
 
-    return () => clearInterval(interval);
+    const unsubscribeSync = subscribeCustomerNotif((notifObj) => {
+      setNotifications((prev) => [notifObj, ...prev]);
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeSync();
+    };
   }, [checkOrderNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -377,7 +387,9 @@ export const HomeScreen = ({ navigation }: any) => {
         />
         {/* Floating Offer Badge Top Left */}
         <View style={styles.heroBadgeOffer}>
-          <Text style={styles.heroBadgeOfferText}>{item.badge || '30% OFF'}</Text>
+          <Text style={styles.heroBadgeOfferText}>
+            {item.offerDiscountPercentage ? `${item.offerDiscountPercentage}% OFF` : (item.badge || item.offer || '30% OFF')}
+          </Text>
         </View>
 
         {/* Floating Green Rating Badge Top Right */}
@@ -418,36 +430,48 @@ export const HomeScreen = ({ navigation }: any) => {
       {/* Top Location Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.deliverLabel}>Deliver to</Text>
-          <TouchableOpacity style={styles.locationSelector} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
-              📍 {selectedAddress ? `${selectedAddress.label} (${selectedAddress.addressLine})` : 'Select Location (Set Address)'}
-            </Text>
-            <Text style={styles.dropdownIcon}>▼</Text>
-          </TouchableOpacity>
+          {selectedAddress ? (
+            <>
+              <Text style={styles.deliverLabel}>Deliver to</Text>
+              <TouchableOpacity style={styles.locationSelector} onPress={() => navigation.navigate('Profile')}>
+                <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
+                  📍 {selectedAddress.label} ({selectedAddress.addressLine})
+                </Text>
+                <Text style={styles.dropdownIcon}>▼</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={styles.locationSelector} onPress={() => navigation.navigate('Profile')}>
+              <Text style={styles.brandTitleText}>Cravingza</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconBadgeBtn}
-            onPress={() => {
-              setShowNotificationModal(true);
-              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-            }}
-          >
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <Path d="M13.73 21a2 2 0 01-3.46 0" />
-            </Svg>
-            {unreadCount > 0 ? (
-              <View style={styles.notificationNumberBadge}>
-                <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
-              </View>
-            ) : (
-              <View style={styles.notificationDot} />
-            )}
-          </TouchableOpacity>
+          {/* Notification Bell: Only when logged in */}
+          {currentUser && (
+            <TouchableOpacity
+              style={styles.iconBadgeBtn}
+              onPress={() => {
+                setShowNotificationModal(true);
+                setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+              }}
+            >
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <Path d="M13.73 21a2 2 0 01-3.46 0" />
+              </Svg>
+              {unreadCount > 0 ? (
+                <View style={styles.notificationNumberBadge}>
+                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                </View>
+              ) : (
+                <View style={styles.notificationDot} />
+              )}
+            </TouchableOpacity>
+          )}
 
+          {/* Cart Icon */}
           <TouchableOpacity
             style={styles.iconBadgeBtn}
             onPress={() => {
@@ -473,6 +497,17 @@ export const HomeScreen = ({ navigation }: any) => {
               </View>
             )}
           </TouchableOpacity>
+
+          {/* Login Pill Button (Guest Mode Only) */}
+          {!currentUser && (
+            <TouchableOpacity
+              style={styles.headerLoginBtn}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.headerLoginBtnText}>Login</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -495,10 +530,12 @@ export const HomeScreen = ({ navigation }: any) => {
 
       {/* FlatList with Live API */}
       {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Fetching live restaurants...</Text>
-        </View>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <React.Fragment key="header_skel">{renderHeader()}</React.Fragment>
+          <RestaurantCardSkeleton key="skel_1" />
+          <RestaurantCardSkeleton key="skel_2" />
+          <RestaurantCardSkeleton key="skel_3" />
+        </ScrollView>
       ) : (
         <FlatList
           data={filteredItems}
@@ -616,6 +653,12 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
     marginRight: 12,
+  },
+  brandTitleText: {
+    fontSize: FONT_SIZE.lg + 2,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
   },
   deliverLabel: {
     fontSize: 11,

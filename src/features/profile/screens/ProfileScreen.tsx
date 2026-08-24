@@ -8,8 +8,9 @@ import {
   ScrollView,
   Image,
   Alert,
-  ActivityIndicator,
   TextInput,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
@@ -19,6 +20,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { useAddress } from '../../../context/AddressContext';
 import { useAuth } from '../../../context/AuthContext';
+import { ProfileSkeleton } from '../../../components/ui/SkeletonPlaceholder';
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { selectedAddress, saveNewAddress, setSelectedAddress } = useAddress();
@@ -27,11 +29,45 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [phoneModalVisible, setPhoneModalVisible] = useState<boolean>(false);
+  const [newPhoneInput, setNewPhoneInput] = useState<string>('');
+  const [savingPhone, setSavingPhone] = useState<boolean>(false);
+
+  const handleSavePhoneOnly = async () => {
+    if (!newPhoneInput.trim()) {
+      Alert.alert('Validation Error', 'Please enter your mobile phone number.');
+      return;
+    }
+
+    try {
+      setSavingPhone(true);
+      const cleanedPhone = newPhoneInput.trim();
+      await updateUserProfileApi({ phone: cleanedPhone }).catch(() => {});
+
+      setPhone(cleanedPhone);
+      setAuthUser({
+        ...currentUser,
+        phone: cleanedPhone,
+      });
+
+      setPhoneModalVisible(false);
+      setNewPhoneInput('');
+      Alert.alert('Phone Number Saved 🎉', 'Your mobile phone number has been updated successfully!');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Unable to update phone number');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
 
   // Form Fields (Pre-populated from logged-in currentUser & selectedAddress)
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
-  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [phone, setPhone] = useState(
+    currentUser?.phone && !['919876543210', '9876543210'].includes(currentUser.phone.replace(/[^0-9]/g, ''))
+      ? currentUser.phone
+      : ''
+  );
   const [street, setStreet] = useState(selectedAddress?.addressLine || '');
   const [city, setCity] = useState(selectedAddress?.city || '');
   const [pincode, setPincode] = useState(selectedAddress?.pincode || '');
@@ -49,9 +85,19 @@ export const ProfileScreen = ({ navigation }: any) => {
     }
   }, [selectedAddress]);
 
+  const isDummyPhone = (p?: string) => {
+    if (!p) return true;
+    const cleaned = p.replace(/[^0-9]/g, '');
+    return cleaned === '919876543210' || cleaned === '9876543210';
+  };
+
   // 🔹 Fetch User Profile on Screen Load (Live MongoDB API)
   useEffect(() => {
-    fetchUserProfile();
+    if (currentUser) {
+      fetchUserProfile();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const fetchUserProfile = async () => {
@@ -62,7 +108,11 @@ export const ProfileScreen = ({ navigation }: any) => {
       if (currentUser) {
         if (currentUser.name) setName(currentUser.name);
         if (currentUser.email) setEmail(currentUser.email);
-        if (currentUser.phone) setPhone(currentUser.phone);
+        if (currentUser.phone && !isDummyPhone(currentUser.phone)) {
+          setPhone(currentUser.phone);
+        } else {
+          setPhone('');
+        }
         if (currentUser.role) setRole(currentUser.role);
         if (currentUser.avatar) setAvatar(currentUser.avatar);
       }
@@ -76,7 +126,12 @@ export const ProfileScreen = ({ navigation }: any) => {
       if (user) {
         if (user.name) setName(user.name);
         if (user.email) setEmail(user.email);
-        if (user.phone) setPhone(user.phone);
+        const fetchedPhone = user.phone;
+        if (fetchedPhone && !isDummyPhone(fetchedPhone)) {
+          setPhone(fetchedPhone);
+        } else {
+          setPhone('');
+        }
         if (user.role) setRole(user.role);
         if (user.avatar || user.photo || user.image) {
           setAvatar(user.avatar || user.photo || user.image);
@@ -87,13 +142,16 @@ export const ProfileScreen = ({ navigation }: any) => {
           id: user._id || user.id,
           name: user.name || name,
           email: user.email || email,
-          phone: user.phone || phone,
+          phone: fetchedPhone && !isDummyPhone(fetchedPhone) ? fetchedPhone : '',
           role: user.role || role,
           avatar: user.avatar || avatar,
         });
       }
     } catch (error: any) {
       console.log('Fetch Live Profile API Note:', error.message);
+      if (currentUser?.phone && isDummyPhone(currentUser.phone)) {
+        setPhone('');
+      }
     } finally {
       setLoading(false);
     }
@@ -157,22 +215,48 @@ const handleLogout = () => {
     {
       text: 'Logout',
       style: 'destructive',
-      onPress: async () => {
-        try {
-          await GoogleSignin.signOut().catch(() => { });
-        } catch (e) { }
-        try {
-          getAuth().signOut();
-        } catch (e) { }
+      onPress: () => {
         authLogout();
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Login' }],
+          routes: [{ name: 'Home' }],
         });
       },
     },
   ]);
 };
+
+  if (!currentUser) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.topNavIconText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Account</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIconCircle}>
+            <Text style={{ fontSize: 40 }}>👤</Text>
+          </View>
+          <Text style={styles.guestTitle}>Welcome to Cravingza! 👋</Text>
+          <Text style={styles.guestSubtitle}>
+            Log in or create an account to view your live orders, saved addresses, profile info, and exclusive offers.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.guestLoginBtn}
+            onPress={() => navigation.navigate('Login')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.guestLoginBtnText}>Login / Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
 return (
   <SafeAreaView style={styles.safeArea}>
@@ -191,10 +275,7 @@ return (
     </View>
 
     {loading ? (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Fetching profile details...</Text>
-      </View>
+      <ProfileSkeleton />
     ) : (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -263,11 +344,23 @@ return (
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              placeholder="Enter phone number"
+              placeholder="Enter phone number (e.g. +91 98765 43210)"
               placeholderTextColor="#94A3B8"
             />
-          ) : (
+          ) : phone ? (
             <Text style={styles.fieldValueReadOnly}>{phone}</Text>
+          ) : (
+            <TouchableOpacity
+              style={styles.addPhonePillBtn}
+              onPress={() => {
+                setNewPhoneInput('');
+                setPhoneModalVisible(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addPhonePillText}>Enter phone number</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>+ Add</Text>
+            </TouchableOpacity>
           )}
 
           {/* Delivery Address Section */}
@@ -424,38 +517,15 @@ return (
               <Text style={styles.menuItemTitle}>My Orders</Text>
               <Text style={styles.menuItemSub}>View active and past food orders</Text>
             </View>
-            <Text style={styles.menuItemChevron}>→</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.menuRowItem}
-            onPress={() => Alert.alert('Saved Addresses', address)}
+            onPress={() => Alert.alert('Saved Addresses', street ? `${street}, ${city} - ${pincode}` : 'No address saved yet.')}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.menuItemTitle}>Delivery Addresses</Text>
               <Text style={styles.menuItemSub}>Manage home, work & saved locations</Text>
-            </View>
-            <Text style={styles.menuItemChevron}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => Alert.alert('Notifications', 'Push notifications enabled!')}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>Notifications & Offers</Text>
-              <Text style={styles.menuItemSub}>Promo codes, discounts & order alerts</Text>
-            </View>
-            <Text style={styles.menuItemChevron}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => Alert.alert('Customer Support', 'Contact us at support@cravingza.com')}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>Help & Support</Text>
-              <Text style={styles.menuItemSub}>24x7 customer assistance</Text>
             </View>
             <Text style={styles.menuItemChevron}>→</Text>
           </TouchableOpacity>
@@ -528,10 +598,56 @@ return (
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutBtnText}>🚪 Log Out</Text>
+          <Text style={styles.logoutBtnText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
     )}
+
+    {/* 📱 Dedicated Single Mobile Phone Number Edit Modal */}
+    <Modal visible={phoneModalVisible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>📱 Add Mobile Phone Number</Text>
+          <Text style={styles.modalSub}>
+            Enter your mobile phone number for order status updates, delivery rider calls & SMS alerts.
+          </Text>
+
+          <TextInput
+            style={styles.modalInput}
+            value={newPhoneInput}
+            onChangeText={setNewPhoneInput}
+            keyboardType="phone-pad"
+            placeholder="e.g. +91 98765 43210"
+            placeholderTextColor="#94A3B8"
+            autoFocus
+          />
+
+          <View style={styles.modalActionsRow}>
+            <TouchableOpacity
+              style={styles.btnCancel}
+              onPress={() => {
+                setPhoneModalVisible(false);
+                setNewPhoneInput('');
+              }}
+            >
+              <Text style={styles.btnCancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.btnSavePhone}
+              onPress={handleSavePhoneOnly}
+              disabled={savingPhone}
+            >
+              {savingPhone ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.btnSavePhoneText}>Save Phone Number</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   </SafeAreaView>
 );
 };
@@ -762,5 +878,131 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: FONT_SIZE.sm,
     fontWeight: '800',
+  },
+  addPhonePillBtn: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addPhonePillText: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  guestContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: '#F8FAFC',
+  },
+  guestIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFE4E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  guestTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  guestSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  guestLoginBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  guestLoginBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: SPACING.lg,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: SPACING.md,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    marginBottom: SPACING.md,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  btnCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  btnSavePhone: {
+    flex: 1.5,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  btnSavePhoneText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFF',
   },
 });

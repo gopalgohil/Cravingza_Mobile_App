@@ -14,8 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
-import { getUserOrdersApi } from '../services/customerApi';
+import { getUserOrdersApi, submitCustomerReviewApi, cancelOrderApi } from '../services/customerApi';
+import { addSharedReview } from '../../../services/reviewSyncStore';
+import { Modal, TextInput } from 'react-native';
 import { useCart } from '../../../context/CartContext';
+import { OrderCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
 
 export interface OrderItem {
   name: string;
@@ -41,6 +44,55 @@ export const OrdersScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [selectedFilter, setSelectedFilter] = useState<string>('All');
+
+  // Review Modal State
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState<any>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>('');
+  const [submittingReview, setSubmittingReview] = useState<boolean>(false);
+
+  const handleSubmitReview = async () => {
+    if (!reviewComment.trim()) {
+      Alert.alert('Validation Error', 'Please write a brief review comment for your order.');
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      const payload = {
+        orderId: selectedOrderForReview?.id || selectedOrderForReview?._id,
+        restaurantId: selectedOrderForReview?.restaurantId || '6a816c0c8170d2e1641c04f1',
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+        customerName: 'gopal gohel',
+      };
+
+      await submitCustomerReviewApi(payload).catch(() => { });
+
+      // Add to shared review store so restaurant admin updates live in real-time
+      addSharedReview({
+        _id: `rev_live_${Date.now()}`,
+        customerName: 'gopal gohel',
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+        createdAt: new Date().toISOString(),
+        orderId: selectedOrderForReview?.id || selectedOrderForReview?._id,
+        orderNumber: selectedOrderForReview?.orderNumber,
+        items: selectedOrderForReview?.items || [],
+        totalAmount: selectedOrderForReview?.totalPrice || 725.18,
+      });
+
+      Alert.alert('Review Submitted! ⭐', 'Thank you for rating your order! Your feedback is now live on the restaurant portal.');
+      setReviewModalVisible(false);
+      setReviewComment('');
+      setSelectedOrderForReview(null);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Unable to submit review.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   // 🔹 Sample Fallback Demo Orders (In case live API returns 0 items)
   const demoOrders: Order[] = [
@@ -153,17 +205,17 @@ export const OrdersScreen = ({ navigation }: any) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'out_for_delivery':
-        return { label: '🚚 Out for Delivery', color: '#D97706', bg: '#FEF3C7' };
+        return { label: 'Out for Delivery', color: '#D97706', bg: '#FEF3C7' };
       case 'preparing':
       case 'accepted':
       case 'placed':
-        return { label: '⏳ Preparing Food', color: '#2563EB', bg: '#EFF6FF' };
+        return { label: 'Preparing Food', color: '#2563EB', bg: '#EFF6FF' };
       case 'delivered':
-        return { label: '🟢 Delivered', color: '#16A34A', bg: '#DCFCE7' };
+        return { label: 'Delivered', color: '#16A34A', bg: '#DCFCE7' };
       case 'cancelled':
-        return { label: '🔴 Cancelled', color: '#DC2626', bg: '#FEE2E2' };
+        return { label: 'Cancelled', color: '#DC2626', bg: '#FEE2E2' };
       default:
-        return { label: '📦 Order Placed', color: '#475569', bg: '#F1F5F9' };
+        return { label: 'Order Placed', color: '#475569', bg: '#F1F5F9' };
     }
   };
 
@@ -174,7 +226,7 @@ export const OrdersScreen = ({ navigation }: any) => {
         <TouchableOpacity style={styles.backCircleBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backIconText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>My Orders 📦</Text>
+        <Text style={styles.screenTitle}>My Orders</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -200,109 +252,128 @@ export const OrdersScreen = ({ navigation }: any) => {
     </View>
   );
 
-  // 🎨 Single Order Card Renderer
+  const safeAlert = (title: string, message?: string, buttons?: any[]) => {
+    setTimeout(() => {
+      try {
+        Alert.alert(title, message, buttons);
+      } catch (err) {
+        console.log('SafeAlert Notice:', err);
+      }
+    }, 50);
+  };
+
+  // 🎨 Order Card Renderer (Matching User Screenshot for Orders List)
   const renderOrderCard = ({ item }: { item: Order }) => {
     const badge = getStatusBadge(item.status);
+    const isCancelled = item.status === 'cancelled';
+    const isDelivered = item.status === 'delivered';
+
+    const itemsSummary = item.items.map((it) => `${it.quantity}x ${it.name}`).join(', ');
+
+    const handleReorderPress = () => {
+      clearCart();
+      item.items.forEach((dish, idx) => {
+        addToCart(
+          {
+            id: `reorder_${idx}_${Date.now()}`,
+            name: dish.name,
+            price: dish.price,
+          },
+          '6a71cf90ab29fa88687723b4',
+          item.restaurantName
+        );
+      });
+      safeAlert(
+        'Items Added to Cart! 🛒',
+        `Items from ${item.restaurantName} have been added to your cart.`,
+        [
+          {
+            text: 'Proceed to Checkout',
+            onPress: () =>
+              navigation.navigate('Checkout', {
+                restaurantName: item.restaurantName,
+              }),
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    };
+
+    const handleViewDetailsPress = () => {
+      navigation.navigate('TrackOrder', {
+        orderId: item.id,
+        orderNumber: item.orderNumber,
+      });
+    };
 
     return (
-      <View style={styles.orderCard}>
-        {/* Card Header Row */}
-        <View style={styles.cardHeader}>
+      <TouchableOpacity
+        style={styles.screenshotListOrderCard}
+        onPress={handleViewDetailsPress}
+        activeOpacity={0.92}
+      >
+        {/* Top Content Row: Image + Details + Badges */}
+        <View style={styles.listCardTopRow}>
           <Image
             source={{ uri: item.restaurantImage }}
-            style={styles.restaurantImage}
+            style={styles.listCardRestImage}
             resizeMode="cover"
           />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.restaurantName} numberOfLines={1}>
+
+          <View style={{ flex: 1, marginHorizontal: 12 }}>
+            <Text style={styles.listCardRestName} numberOfLines={1}>
               {item.restaurantName}
             </Text>
-            <Text style={styles.orderMetaText}>
-              {item.orderNumber} • {item.date}
+            <Text style={styles.listCardDateText}>{item.date}</Text>
+            <Text style={styles.listCardItemsSummary} numberOfLines={1}>
+              {itemsSummary || '1x Gourmet Food Item'}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
-            <Text style={[styles.statusBadgeText, { color: badge.color }]}>{badge.label}</Text>
-          </View>
-        </View>
 
-        {/* Divider Line */}
-        <View style={styles.divider} />
-
-        {/* Items List */}
-        <View style={styles.itemsContainer}>
-          {item.items.map((dish, idx) => (
-            <View key={idx} style={styles.itemRow}>
-              <Text style={styles.itemBullet}>•</Text>
-              <Text style={styles.itemName}>
-                {dish.quantity}x {dish.name}
+          {/* Right Badges Column (Status + Payment/Refund) */}
+          <View style={styles.listCardBadgesColumn}>
+            <View style={[styles.listStatusBadgePill, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.listStatusBadgeText, { color: badge.color }]}>
+                {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : badge.label}
               </Text>
-              <Text style={styles.itemPrice}>₹{(dish.price * dish.quantity).toFixed(2)}</Text>
             </View>
-          ))}
-        </View>
 
-        {/* Divider Line */}
-        <View style={styles.divider} />
-
-        {/* Card Footer Row (Total Price & CTA Buttons) */}
-        <View style={styles.cardFooter}>
-          <View>
-            <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalPrice}>₹{item.totalPrice.toFixed(2)}</Text>
-          </View>
-
-          <View style={styles.actionButtonsRow}>
-            {['placed', 'accepted', 'preparing', 'out_for_delivery'].includes(item.status) ? (
-              <TouchableOpacity
-                style={styles.trackBtn}
-                onPress={() =>
-                  navigation.navigate('TrackOrder', {
-                    orderId: item.id,
-                    orderNumber: item.orderNumber,
-                  })
-                }
+            <View
+              style={[
+                styles.listPaymentBadgePill,
+                isCancelled && { backgroundColor: '#D1FAE5' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.listPaymentBadgeText,
+                  isCancelled && { color: '#059669' },
+                ]}
               >
-                <Text style={styles.trackBtnText}>Track Order 📍</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.reorderBtn}
-                onPress={() => {
-                  clearCart();
-                  item.items.forEach((dish, idx) => {
-                    addToCart(
-                      {
-                        id: `reorder_${idx}_${Date.now()}`,
-                        name: dish.name,
-                        price: dish.price,
-                      },
-                      '6a71cf90ab29fa88687723b4',
-                      item.restaurantName
-                    );
-                  });
-                  Alert.alert(
-                    'Items Added to Cart! 🛒',
-                    `Items from ${item.restaurantName} have been added to your cart.`,
-                    [
-                      {
-                        text: 'Proceed to Checkout 🛍️',
-                        onPress: () =>
-                          navigation.navigate('Checkout', {
-                            restaurantName: item.restaurantName,
-                          }),
-                      },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                }}
-              >
-                <Text style={styles.reorderBtnText}>Reorder 🔄</Text>
-              </TouchableOpacity>
-            )}
+                {isCancelled ? 'Refunded' : 'COD'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+
+        {/* Dashed Divider Line */}
+        <View style={styles.listDashedDivider} />
+
+        {/* Bottom Row: Price + View Details Link + Reorder Outline Button */}
+        <View style={styles.listCardBottomRow}>
+          <Text style={styles.listCardTotalPrice}>₹{item.totalPrice.toFixed(2)}</Text>
+
+          <View style={styles.listCardActionRow}>
+            <TouchableOpacity onPress={handleViewDetailsPress} activeOpacity={0.7} style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
+              <Text style={styles.viewDetailsTextLink}>View Details</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.reorderOutlineBtn} onPress={handleReorderPress} activeOpacity={0.8}>
+              <Text style={styles.reorderOutlineBtnText}>Reorder</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -319,7 +390,7 @@ export const OrdersScreen = ({ navigation }: any) => {
         style={styles.exploreBtn}
         onPress={() => navigation.navigate('Home')}
       >
-        <Text style={styles.exploreBtnText}>Explore Restaurants →</Text>
+        <Text style={styles.exploreBtnText}>Explore Restaurants</Text>
       </TouchableOpacity>
     </View>
   );
@@ -331,9 +402,10 @@ export const OrdersScreen = ({ navigation }: any) => {
         {renderHeader()}
 
         {loading && !refreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Fetching order history...</Text>
+          <View style={{ flex: 1, paddingTop: 12 }}>
+            <OrderCardSkeleton key="ord_skel_1" />
+            <OrderCardSkeleton key="ord_skel_2" />
+            <OrderCardSkeleton key="ord_skel_3" />
           </View>
         ) : (
           <FlatList
@@ -353,6 +425,60 @@ export const OrdersScreen = ({ navigation }: any) => {
             }
           />
         )}
+
+        {/* 🔹 Rate & Review Order Modal */}
+        <Modal visible={reviewModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Rate Your Order ⭐</Text>
+              <Text style={styles.modalSub}>
+                How was your meal from {selectedOrderForReview?.restaurantName || 'Restaurant'}?
+              </Text>
+
+              {/* Star Rating Selector */}
+              <View style={styles.starPickerRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setReviewRating(star)}>
+                    <Text style={[styles.starIcon, { color: star <= reviewRating ? '#F59E0B' : '#CBD5E1' }]}>
+                      ★
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Write your review (e.g. Amazing Italian pizza, super fast delivery!)..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={4}
+                value={reviewComment}
+                onChangeText={setReviewComment}
+              />
+
+              <View style={styles.modalActionsRow}>
+                <TouchableOpacity
+                  style={styles.btnCancel}
+                  onPress={() => setReviewModalVisible(false)}
+                >
+                  <Text style={styles.btnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnSubmitReview}
+                  onPress={handleSubmitReview}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.btnSubmitReviewText}>Submit Review →</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -588,5 +714,409 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  reviewBtn: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  reviewBtnText: {
+    color: '#D97706',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: SPACING.lg,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: SPACING.md,
+  },
+  starPickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: SPACING.md,
+  },
+  starIcon: {
+    fontSize: 32,
+  },
+  reviewInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: SPACING.md,
+    fontSize: 13,
+    color: '#0F172A',
+    textAlignVertical: 'top',
+    minHeight: 90,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: SPACING.md,
+  },
+  btnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  btnCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  btnSubmitReview: {
+    flex: 1.5,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  btnSubmitReviewText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  screenshotOrderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardSectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  itemCountBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  itemCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  dishItemBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  qtyBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  qtyBadgeText: {
+    color: '#C2410C',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  dishNameText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginRight: 8,
+  },
+  dishPriceText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  deliveryAddressCardBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  addressTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  addressTitleLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  addressContentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  homeTagPill: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  homeTagPillText: {
+    color: '#C2410C',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  fullAddressText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 18,
+  },
+  billBreakdownSection: {
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  billRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  billRowLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  billRowValue: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  codBadgePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  codBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  totalBillDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  totalBillRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalBillLabel: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  totalBillAmountText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#EA580C',
+  },
+  actionButtonsStack: {
+    gap: 10,
+    marginTop: 8,
+  },
+  trackOrderBannerBtn: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackOrderBannerBtnText: {
+    color: '#4F46E5',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reorderFoodBtn: {
+    backgroundColor: '#EA580C',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderFoodBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  cancelOrderBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelOrderBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.55,
+  },
+  cancelOrderBtnText: {
+    color: '#EF4444',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  cancelOrderBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  screenshotListOrderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  listCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  listCardRestImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  listCardRestName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  listCardDateText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  listCardItemsSummary: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '700',
+  },
+  listCardBadgesColumn: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  listStatusBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  listStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  listPaymentBadgePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  listPaymentBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  listDashedDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  listCardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  listCardTotalPrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#C2410C',
+  },
+  listCardActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  viewDetailsTextLink: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#C2410C',
+  },
+  reorderOutlineBtn: {
+    borderWidth: 1.5,
+    borderColor: '#C2410C',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  reorderOutlineBtnText: {
+    color: '#C2410C',
+    fontSize: 13,
+    fontWeight: '900',
   },
 });

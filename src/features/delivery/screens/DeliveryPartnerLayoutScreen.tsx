@@ -13,11 +13,61 @@ import {
   Switch,
   Linking,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { apiClient } from '../../../services/apiClient';
+import {
+  getSharedOrders,
+  setSharedOrders,
+  updateSharedOrderStatus,
+  subscribeOrderSync,
+} from '../../../services/orderSyncStore';
+import { DeliverySidebarDrawer } from '../components/DeliverySidebarDrawer';
+
+const renderDeliveryNavIcon = (name: string, active: boolean) => {
+  const color = active ? '#EA580C' : '#94A3B8';
+  const size = 22;
+
+  switch (name) {
+    case 'dashboard':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <Rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <Rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <Rect x="14" y="14" width="7" height="7" rx="1.5" />
+          <Rect x="3" y="14" width="7" height="7" rx="1.5" />
+        </Svg>
+      );
+    case 'orders':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill={active ? '#EA580C' : 'none'} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+          <Path d="M3 6h18" />
+          <Path d="M16 10a4 4 0 01-8 0" />
+        </Svg>
+      );
+    case 'dboy':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill={active ? '#EA580C' : 'none'} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+          <Circle cx="12" cy="7" r="4" />
+        </Svg>
+      );
+    case 'settings':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <Circle cx="12" cy="12" r="3" />
+          <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </Svg>
+      );
+    default:
+      return null;
+  }
+};
 
 export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const { currentUser, logout: authLogout } = useAuth();
@@ -27,6 +77,19 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'dboy' | 'settings'>('orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Drawer and Notifications Modal states
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
+  const [notifications, setNotifications] = useState<any[]>([
+    {
+      id: 'notif_welcome',
+      title: 'Welcome Delivery Hero! 🚴',
+      message: 'You will receive real-time order alerts when restaurant admin marks food ready for pickup.',
+      time: 'Just now',
+      read: false,
+    },
+  ]);
 
   // Track orders accepted and declined by rider
   const [acceptedOrderIds, setAcceptedOrderIds] = useState<string[]>([]);
@@ -40,12 +103,18 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     time?: string;
   }>({ visible: false, title: '', message: '' });
 
-  // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend
+  // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend or Local Sync
   const fetchDeliveries = useCallback(async () => {
     try {
       console.log('Fetching Live Delivery Partner Orders from MongoDB Atlas...');
       const res = await apiClient('/orders');
-      const orderList = res?.orders || res?.data || (Array.isArray(res) ? res : []);
+      let orderList = res?.orders || res?.data || (Array.isArray(res) ? res : []);
+
+      if (!Array.isArray(orderList) || orderList.length === 0) {
+        orderList = getSharedOrders();
+      } else {
+        setSharedOrders(orderList);
+      }
 
       if (Array.isArray(orderList)) {
         // Real-time status change detection from Restaurant Admin
@@ -55,25 +124,44 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           const newSt = (o.status || '').toLowerCase();
 
           if (
-            oldSt &&
-            ['pending', 'preparing', 'placed'].includes(oldSt.toLowerCase()) &&
-            ['ready', 'out_for_delivery', 'picked_up'].includes(newSt)
+            (!oldSt || ['pending', 'placed'].includes(oldSt.toLowerCase())) &&
+            ['preparing', 'ready', 'out_for_delivery', 'picked_up'].includes(newSt)
           ) {
             const restName = o.restaurant?.name || o.restaurantName || 'Restaurant Partner';
             const ordNum = o.orderNumber || `#CRV-${String(idStr).slice(-4).toUpperCase()}`;
 
+            const notifTitle = `🛵 Delivery Request from ${restName}`;
+            const notifMsg = `Order ${ordNum} marked as ${newSt.replace('_', ' ').toUpperCase()}! Click to accept & deliver.`;
+
             // WhatsApp-Style Top Heads-Up Push Notification
             setNotificationBanner({
               visible: true,
-              title: restName,
-              message: `Order ${ordNum} is ready for pickup! 🛵`,
+              title: notifTitle,
+              message: notifMsg,
               time: 'now',
             });
 
-            // Auto dismiss after 5 seconds like WhatsApp push notification
+            // Push into Notifications Array for Bell Badge Counter & Modal List
+            const notifId = `notif_${Date.now()}_${idStr}`;
+            setNotifications((prev) => {
+              if (prev.some((n) => n.orderId === idStr && n.status === newSt)) return prev;
+              return [
+                {
+                  id: notifId,
+                  title: notifTitle,
+                  message: notifMsg,
+                  time: 'Just now',
+                  read: false,
+                  orderId: idStr,
+                  status: newSt,
+                },
+                ...prev,
+              ];
+            });
+
             setTimeout(() => {
               setNotificationBanner((prev) => ({ ...prev, visible: false }));
-            }, 5000);
+            }, 6000);
           }
         });
 
@@ -87,25 +175,32 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
 
         setOrders(orderList);
       } else {
-        setOrders([]);
+        setOrders(getSharedOrders());
       }
     } catch (err: any) {
       console.log('Fetch Deliveries Error:', err.message);
-      setOrders([]);
+      setOrders(getSharedOrders());
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [prevOrderStatuses]);
 
-  // 🔹 Initial Fetch & Auto Polling every 6 seconds for live MongoDB Atlas updates
+  // 🔹 Initial Fetch & Auto Polling + Store Listener
   useEffect(() => {
     fetchDeliveries();
     const interval = setInterval(() => {
       fetchDeliveries();
-    }, 6000);
+    }, 4000);
 
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeOrderSync(() => {
+      setOrders([...getSharedOrders()]);
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [fetchDeliveries]);
 
   const handleRefresh = () => {
@@ -133,6 +228,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
 
     try {
       setUpdatingId(orderId);
+      updateSharedOrderStatus(orderId, targetStatus);
       await apiClient(`/orders/${orderId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status: targetStatus }),
@@ -158,7 +254,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     Alert.alert('Logout Confirmation', 'Logout from Delivery Partner Portal?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Logout 🚪',
+        text: 'Logout',
         style: 'destructive',
         onPress: () => {
           authLogout();
@@ -177,6 +273,23 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     const earningVal = o.earning ? Number(o.earning) : Number(o.totalAmount || o.totalPrice || 0) * 0.15;
     return sum + (isNaN(earningVal) ? 65 : earningVal);
   }, 0);
+
+  const getHeaderTitle = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return 'Earnings Dashboard';
+      case 'orders':
+        return 'Live Orders';
+      case 'dboy':
+        return 'Rider Profile';
+      case 'settings':
+        return 'Account Settings';
+      default:
+        return 'Live Orders';
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -204,48 +317,39 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       )}
 
-      {/* Top Header Card */}
-      <View style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <Image
-            source={{
-              uri:
-                currentUser?.avatar ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-            }}
-            style={styles.avatar}
-          />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.riderName}>{currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}</Text>
-              <View style={styles.badgeRider}>
-                <Text style={styles.badgeRiderText}>🚴 Delivery Hero</Text>
-              </View>
+      {/* Top App Header with Left Hamburger Drawer Icon & Right Live Notification Bell */}
+      <View style={styles.topHeader}>
+        {/* Left: Hamburger Drawer Icon */}
+        <TouchableOpacity style={styles.menuIconBtn} onPress={() => setIsDrawerOpen(true)}>
+          <Text style={styles.menuIconText}>☰</Text>
+        </TouchableOpacity>
+
+        {/* Center: Title Box */}
+        <View style={styles.headerTitleBox}>
+          <Text style={styles.portalLabel}>
+            deliveryPartner • {currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}
+          </Text>
+          <Text style={styles.currentTabLabel}>{getHeaderTitle()}</Text>
+        </View>
+
+        {/* Right: Live Notification Bell Icon */}
+        <TouchableOpacity
+          style={styles.notifBellBtn}
+          onPress={() => {
+            setShowNotifModal(true);
+            setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+          }}
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <Path d="M13.73 21a2 2 0 01-3.46 0" />
+          </Svg>
+          {unreadCount > 0 && (
+            <View style={styles.notifBadgeCircle}>
+              <Text style={styles.notifBadgeText}>{unreadCount}</Text>
             </View>
-            <Text style={styles.riderEmail}>{currentUser?.email || 'rahul@example.com'}</Text>
-            <Text style={styles.riderStats}>⭐ 4.9 Rating • Live MongoDB Synced</Text>
-          </View>
-
-          <TouchableOpacity style={styles.logoutBtnIcon} onPress={handleLogout}>
-            <Text style={{ fontSize: 18 }}>🚪</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Online / Offline Status Bar */}
-        <View style={styles.onlineBar}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={[styles.dotStatus, { backgroundColor: isOnline ? '#22C55E' : '#EF4444' }]} />
-            <Text style={styles.onlineStatusText}>
-              {isOnline ? '🟢 Duty Status: ONLINE (Live Receiving Orders)' : '🔴 Duty Status: OFFLINE'}
-            </Text>
-          </View>
-          <Switch
-            value={isOnline}
-            onValueChange={setIsOnline}
-            trackColor={{ false: '#CBD5E1', true: '#BBF7D0' }}
-            thumbColor={isOnline ? '#16A34A' : '#94A3B8'}
-          />
-        </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* TAB CONTENTS */}
@@ -254,7 +358,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         {activeTab === 'dashboard' && (
           <ScrollView style={styles.scrollContent}>
             <View style={styles.earningsHero}>
-              <Text style={styles.earningsTitle}>Live Earnings (MongoDB Atlas)</Text>
+              <Text style={styles.earningsTitle}>Live Earnings</Text>
               <Text style={styles.earningsAmount}>₹{todayEarnings.toFixed(2)}</Text>
               <Text style={styles.earningsSub}>
                 {completedOrders.length} Deliveries Completed Today • Live Auto Synced
@@ -281,7 +385,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
             <View style={styles.historyCard}>
               {orders.length === 0 ? (
                 <Text style={{ textAlign: 'center', color: '#64748B', paddingVertical: 12 }}>
-                  No live deliveries found in MongoDB Atlas database.
+                  No live deliveries found.
                 </Text>
               ) : (
                 orders.map((o, idx) => (
@@ -302,264 +406,346 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         )}
 
         {/* 2. ORDERS TAB */}
-        {activeTab === 'orders' && (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#EA580C']} />}
-          >
-            {loading && orders.length === 0 ? (
-              <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60 }}>
-                <ActivityIndicator size="large" color="#EA580C" />
-                <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>
-                  Loading Live Orders from MongoDB Atlas...
-                </Text>
-              </View>
-            ) : orders.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={{ fontSize: 48, marginBottom: 12 }}>📦</Text>
-                <Text style={styles.emptyTitle}>No Orders Assigned Yet</Text>
-                <Text style={styles.emptySub}>
-                  You are currently ONLINE. New food orders placed on Cravingza will appear here live from MongoDB Atlas!
-                </Text>
-                <TouchableOpacity style={styles.btnRefreshLive} onPress={handleRefresh}>
-                  <Text style={styles.btnRefreshLiveText}>🔄 Refresh MongoDB Orders</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              orders.map((item, idx) => {
-                const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
-                if (declinedOrderIds.includes(orderIdStr)) {
-                  return null; // Skip declined order
-                }
+        {activeTab === 'orders' && (() => {
+          // Find if there is an active accepted delivery (not yet delivered or cancelled)
+          const activeDeliveryOrder = orders.find((item, idx) => {
+            const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
+            if (declinedOrderIds.includes(orderIdStr)) return false;
 
-                const isAccepted =
-                  acceptedOrderIds.includes(orderIdStr) ||
-                  item.status === 'picked_up' ||
-                  item.status === 'out_for_delivery' ||
-                  item.status === 'delivered';
+            const st = String(item.status || '').toLowerCase();
+            if (['delivered', 'completed', 'cancelled'].includes(st)) return false;
 
-                const step = getStepNumber(item.status);
-                const restaurantName = item.restaurant?.name || item.restaurantName || 'Cravingza Bistro';
-                const storePhone = item.restaurant?.phone || item.restaurantPhone || '+919123456789';
-                const restaurantAddress = item.restaurant?.address || item.restaurantAddress || 'Sector 62, Noida';
-                const customerName = item.customer?.name || item.user?.name || item.userName || 'Customer';
-                const customerPhone = item.customer?.phone || item.user?.phone || item.userPhone || '+919876543210';
-                const customerAddress = item.deliveryAddress?.street
-                  ? `${item.deliveryAddress.street}, ${item.deliveryAddress.city || ''}`
-                  : (item.deliveryAddress?.addressLine || item.address || 'Delivery Location');
+            const isAccepted =
+              acceptedOrderIds.includes(orderIdStr) ||
+              ['picked_up', 'out_for_delivery', 'on_the_way'].includes(st);
 
-                const items = Array.isArray(item.items) && item.items.length > 0
-                  ? item.items
-                  : [
-                    { name: 'Delicious Food Item', quantity: 1, price: item.totalAmount || 250 },
-                  ];
-                const totalAmount = Number(item.totalAmount || item.totalPrice || 250);
-                const paymentMethod = item.paymentMethod || item.paymentType || 'COD';
+            return isAccepted;
+          });
 
-                // 🔹 1. IF NOT ACCEPTED YET -> SHOW NEW DELIVERY REQUEST OFFER CARD
-                if (!isAccepted) {
+          // Unaccepted new delivery requests
+          const unacceptedOrders = orders.filter((item, idx) => {
+            const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
+            if (declinedOrderIds.includes(orderIdStr)) return false;
+
+            const st = String(item.status || '').toLowerCase();
+            if (['delivered', 'completed', 'cancelled'].includes(st)) return false;
+
+            const isAccepted =
+              acceptedOrderIds.includes(orderIdStr) ||
+              ['picked_up', 'out_for_delivery', 'on_the_way'].includes(st);
+
+            return !isAccepted;
+          });
+
+          return (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#EA580C']} />}
+            >
+              {loading && orders.length === 0 ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60 }}>
+                  <ActivityIndicator size="large" color="#EA580C" />
+                  <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>
+                    Loading Live Orders...
+                  </Text>
+                </View>
+              ) : activeDeliveryOrder ? (
+                // 🔹 1. IF AN ORDER IS ACCEPTED -> SHOW ONLY THAT EXCLUSIVE ACTIVE DELIVERY FULFILLMENT SCREEN (Matches Web App Screenshot)
+                (() => {
+                  const item = activeDeliveryOrder;
+                  const orderIdStr = item._id || item.id;
+                  const step = getStepNumber(item.status);
+                  const restaurantName = item.restaurant?.name || item.restaurantName || 'Burger Boss';
+                  const storePhone = item.restaurant?.phone || item.restaurantPhone || '+919123456789';
+                  const restaurantAddress = item.restaurant?.address || item.restaurantAddress || '101 Burger Boulevard';
+                  const customerName = item.customer?.name || item.user?.name || item.userName || 'gopal gohel';
+                  const customerPhone = item.customer?.phone || item.user?.phone || item.userPhone || '+919876543210';
+                  let customerAddress = 'Address not provided';
+                  const da = item.deliveryAddress || item.address || item.shippingAddress;
+                  if (typeof da === 'string' && da.trim().length > 0) {
+                    customerAddress = da.trim();
+                  } else if (da && typeof da === 'object') {
+                    const parts = [
+                      da.addressLine,
+                      da.street,
+                      da.address,
+                      da.area,
+                      da.landmark,
+                      da.city,
+                      da.zipCode || da.pincode,
+                    ].filter((p) => p && typeof p === 'string' && p.trim().length > 0);
+                    if (parts.length > 0) {
+                      customerAddress = parts.filter((val, idx) => parts.indexOf(val) === idx).join(', ');
+                    }
+                  }
+
+                  const items = Array.isArray(item.items) && item.items.length > 0
+                    ? item.items
+                    : [
+                      { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
+                      { name: 'Truffle Parmesan Fries', quantity: 1, price: 308.99 },
+                    ];
+                  const totalAmount = Number(item.totalAmount || item.totalPrice || 694.38);
+                  const paymentMethod = item.paymentMethod || item.paymentType || 'COD';
+
                   return (
-                    <View key={idx} style={styles.offerCard}>
-                      <View style={styles.offerHeaderRow}>
-                        <View>
-                          <Text style={styles.offerTitle}>🔔 New Delivery Request (MongoDB Live)</Text>
-                          <Text style={styles.offerOrderNum}>{item.orderNumber || `#CRV-${String(orderIdStr).slice(-6).toUpperCase()}`}</Text>
-                        </View>
-                        <View style={styles.payoutBadge}>
-                          <Text style={styles.payoutBadgeText}>Payout: ₹{(totalAmount * 0.15).toFixed(0)}</Text>
-                        </View>
+                    <View style={styles.webOrderCard}>
+                      <View style={styles.activeFulfillmentHeaderRow}>
+                        <Text style={styles.activeFulfillmentTitle}>Active Delivery Fulfillment</Text>
                       </View>
 
-                      <View style={styles.offerLocRow}>
-                        <Text style={styles.offerIcon}>🏪</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.offerLocLabel}>Pick Up From:</Text>
-                          <Text style={styles.offerLocVal}>{restaurantName}</Text>
-                        </View>
-                      </View>
+                      {/* 1. Top Stepper Container Card */}
+                      <View style={styles.stepperContainerCard}>
+                        <View style={styles.stepperIconsRow}>
+                          {/* Step 1: Assigned */}
+                          <View style={styles.stepItem}>
+                            <View style={[styles.stepCircleIcon, step >= 1 && styles.stepCircleActive]}>
+                              <Text style={[styles.stepIconEmoji, step >= 1 && styles.stepIconEmojiActive]}>📋</Text>
+                            </View>
+                            <Text style={[styles.stepLabel, step >= 1 && styles.stepLabelActive]}>Assigned</Text>
+                          </View>
 
-                      <View style={styles.offerLocRow}>
-                        <Text style={styles.offerIcon}>📍</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.offerLocLabel}>Deliver To:</Text>
-                          <Text style={styles.offerLocVal}>{customerAddress}</Text>
-                        </View>
-                      </View>
+                          <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
 
-                      {/* Accept / Decline Action Buttons Row */}
-                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                          {/* Step 2: Picked Up */}
+                          <View style={styles.stepItem}>
+                            <View style={[styles.stepCircleIcon, step >= 2 && styles.stepCircleActive]}>
+                              <Text style={[styles.stepIconEmoji, step >= 2 && styles.stepIconEmojiActive]}>🏪</Text>
+                            </View>
+                            <Text style={[styles.stepLabel, step >= 2 && styles.stepLabelActive]}>Picked Up</Text>
+                          </View>
+
+                          <View style={[styles.stepLine, step >= 3 && styles.stepLineActive]} />
+
+                          {/* Step 3: On the Way */}
+                          <View style={styles.stepItem}>
+                            <View style={[styles.stepCircleIcon, step >= 3 && styles.stepCircleActive]}>
+                              <Text style={[styles.stepIconEmoji, step >= 3 && styles.stepIconEmojiActive]}>🛵</Text>
+                            </View>
+                            <Text style={[styles.stepLabel, step >= 3 && styles.stepLabelActive]}>On the Way</Text>
+                          </View>
+
+                          <View style={[styles.stepLine, step >= 4 && styles.stepLineActive]} />
+
+                          {/* Step 4: Delivered */}
+                          <View style={styles.stepItem}>
+                            <View style={[styles.stepCircleIcon, step >= 4 && styles.stepCircleActive]}>
+                              <Text style={[styles.stepIconEmoji, step >= 4 && styles.stepIconEmojiActive]}>✓</Text>
+                            </View>
+                            <Text style={[styles.stepLabel, step >= 4 && styles.stepLabelActive]}>Delivered</Text>
+                          </View>
+                        </View>
+
+                        {/* Main Dynamic Action Button */}
                         <TouchableOpacity
-                          style={[styles.btnAcceptOffer, { flex: 1 }]}
+                          style={[
+                            styles.heroActionButton,
+                            step === 4 && { backgroundColor: '#16A34A' },
+                            updatingId === orderIdStr && { opacity: 0.7 },
+                          ]}
+                          onPress={() => handleNextStatus(orderIdStr, step)}
+                          disabled={step === 4 || updatingId === orderIdStr}
+                        >
+                          {updatingId === orderIdStr ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <Text style={styles.heroActionButtonText}>
+                              {step === 1 && '🏪 Mark Food Picked Up from Restaurant'}
+                              {step === 2 && '🛵 Start Delivery (On the Way)'}
+                              {step === 3 && '✅ Mark Order Delivered 🎉'}
+                              {step === 4 && '🎉 Order Delivered Successfully'}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* 2. Side-by-Side Two Column Contact Cards */}
+                      <View style={styles.twoColumnRow}>
+                        {/* Left Box: Restaurant */}
+                        <View style={styles.columnBox}>
+                          <View style={styles.boxHeader}>
+                            <View style={styles.storeIconCircle}>
+                              <Text style={{ fontSize: 14 }}>🏪</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.boxTitle} numberOfLines={1}>{restaurantName}</Text>
+                              <Text style={styles.boxSub}>Pickup Location</Text>
+                            </View>
+                            <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(storePhone)}>
+                              <Text style={styles.btnCallGreenText}>📞 Call Store</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.addressGrayBox}>
+                            <Text style={styles.addressBoxTitle}>ADDRESS</Text>
+                            <Text style={styles.addressBoxValue}>{restaurantAddress}</Text>
+                          </View>
+                        </View>
+
+                        {/* Right Box: Customer */}
+                        <View style={styles.columnBox}>
+                          <View style={styles.boxHeader}>
+                            <View style={styles.userIconCircle}>
+                              <Text style={{ fontSize: 14 }}>👤</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.boxTitle} numberOfLines={1}>{customerName}</Text>
+                              <Text style={styles.boxSub}>Delivery Recipient</Text>
+                            </View>
+                            <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(customerPhone)}>
+                              <Text style={styles.btnCallGreenText}>📞 Call Customer</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.addressGrayBox}>
+                            <Text style={styles.addressBoxTitle}>DELIVERY ADDRESS</Text>
+                            <Text style={styles.addressBoxValue}>{customerAddress}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* 3. Order Items & Collectable Cash Box */}
+                      <View style={styles.itemsCashCard}>
+                        <Text style={styles.itemsCardHeader}>Order Items & Collectable Cash</Text>
+                        <View style={styles.dashedLineDivider} />
+
+                        {items.map((dish, i) => (
+                          <View key={i} style={styles.dishRow}>
+                            <Text style={styles.dishName}>{dish.quantity || 1}x {dish.name || 'Food Item'}</Text>
+                            <Text style={styles.dishPrice}>₹{((dish.price || totalAmount) * (dish.quantity || 1)).toFixed(2)}</Text>
+                          </View>
+                        ))}
+
+                        <View style={styles.dashedLineDivider} />
+
+                        {/* Payment Footer Row */}
+                        <View style={styles.cashFooterRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 16 }}>💵</Text>
+                            <Text style={styles.collectCashText}>
+                              {paymentMethod === 'COD' ? 'COLLECT CASH FROM CUSTOMER' : 'PAID ONLINE VIA UPI'}
+                            </Text>
+                          </View>
+                          <Text style={styles.totalCashAmount}>₹{totalAmount.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })()
+              ) : unacceptedOrders.length === 0 ? (
+                // Empty state if no active or pending requests exist
+                <View style={styles.emptyContainer}>
+                  <Text style={{ fontSize: 48, marginBottom: 12 }}>📦</Text>
+                  <Text style={styles.emptyTitle}>No Orders Assigned Yet</Text>
+                  <Text style={styles.emptySub}>
+                    You are currently ONLINE. New food orders placed on Cravingza will appear here live!
+                  </Text>
+                  <TouchableOpacity style={styles.btnRefreshLive} onPress={handleRefresh}>
+                    <Text style={styles.btnRefreshLiveText}>🔄 Refresh Orders</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // 🔹 2. IF NO ACTIVE ACCEPTED ORDER -> RENDER PENDING REQUEST OFFER CARDS
+                unacceptedOrders.map((item, idx) => {
+                  const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
+                  const restaurantName = item.restaurant?.name || item.restaurantName || 'Burger Boss';
+                  const restaurantAddress = item.restaurant?.address || item.restaurantAddress || '101 Burger Boulevard';
+                  let customerAddress = 'Address not provided';
+                  const da = item.deliveryAddress || item.address || item.shippingAddress;
+                  if (typeof da === 'string' && da.trim().length > 0) {
+                    customerAddress = da.trim();
+                  } else if (da && typeof da === 'object') {
+                    const parts = [
+                      da.addressLine,
+                      da.street,
+                      da.address,
+                      da.area,
+                      da.landmark,
+                      da.city,
+                      da.zipCode || da.pincode,
+                    ].filter((p) => p && typeof p === 'string' && p.trim().length > 0);
+                    if (parts.length > 0) {
+                      customerAddress = parts.filter((val, idx) => parts.indexOf(val) === idx).join(', ');
+                    }
+                  }
+
+                  const items = Array.isArray(item.items) && item.items.length > 0
+                    ? item.items
+                    : [
+                      { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
+                      { name: 'Truffle Parmesan Fries', quantity: 1, price: 308.99 },
+                    ];
+                  const totalAmount = Number(item.totalAmount || item.totalPrice || 694.38);
+                  const payoutVal = (totalAmount * 0.15 > 35 ? totalAmount * 0.15 : 40).toFixed(0);
+                  const itemCount = items.length;
+
+                  return (
+                    <View key={idx} style={styles.requestCard}>
+                      <View style={styles.requestHeaderRow}>
+                        <View style={styles.storeIconBox}>
+                          <Text style={{ fontSize: 20 }}>🏪</Text>
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={styles.restaurantTitleName}>{restaurantName}</Text>
+                            <View style={styles.readyPillBadge}>
+                              <Text style={styles.readyPillBadgeText}>Ready for Pickup</Text>
+                            </View>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                            <Text style={{ fontSize: 12, color: '#94A3B8' }}>📍</Text>
+                            <Text style={styles.restaurantAddressText}>{restaurantAddress}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.payoutCardBox}>
+                        <Text style={styles.payoutCardLabel}>ESTIMATED PAYOUT</Text>
+                        <Text style={styles.payoutCardValue}>₹{payoutVal}</Text>
+                      </View>
+
+                      <View style={styles.detailsGreyBox}>
+                        <Text style={styles.detailsSectionLabel}>DELIVERY DESTINATION</Text>
+                        <Text style={styles.detailsAddressVal}>{customerAddress}</Text>
+
+                        <Text style={[styles.detailsSectionLabel, { marginTop: 10 }]}>ITEMS & TOTAL BILL</Text>
+                        <Text style={styles.detailsBillVal}>
+                          {itemCount} {itemCount === 1 ? 'Item' : 'Items'} • Total ₹{totalAmount.toFixed(2)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.requestActionRow}>
+                        <TouchableOpacity
+                          style={styles.btnDeclineRedOutlined}
                           onPress={() => {
-                            setAcceptedOrderIds((prev) => [...prev, orderIdStr]);
-                            Alert.alert('Delivery Accepted 🚴', 'Order assigned to you! Stepper details now active.');
+                            setDeclinedOrderIds((prev) => [...prev, orderIdStr]);
+                            Alert.alert('Order Declined', 'You declined this delivery request.');
                           }}
                         >
-                          <Text style={styles.btnAcceptOfferText}>✅ Accept Order</Text>
+                          <Text style={{ fontSize: 15 }}>🚫</Text>
+                          <Text style={styles.btnDeclineRedText}>Decline</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          style={styles.btnDeclineOffer}
+                          style={styles.btnAcceptGreenSolid}
                           onPress={() => {
-                            setDeclinedOrderIds((prev) => [...prev, orderIdStr]);
-                            Alert.alert('Order Declined ❌', 'You declined this delivery request.');
+                            setAcceptedOrderIds((prev) => [...prev, orderIdStr]);
+                            Alert.alert('Delivery Accepted 🚴', 'Order assigned to you! Active fulfillment now visible.');
                           }}
                         >
-                          <Text style={styles.btnDeclineOfferText}>❌ Decline</Text>
+                          <Text style={styles.btnAcceptGreenText}>Accept Order</Text>
+                          <Text style={{ fontSize: 16, color: '#FFFFFF', fontWeight: '900' }}>→</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
                   );
-                }
-
-                // 🔹 2. IF ACCEPTED -> SHOW FULL WEB STEPPER & CONTACTS CARD
-                return (
-                  <View key={idx} style={styles.webOrderCard}>
-                    {/* 1. Top Stepper Container Card */}
-                    <View style={styles.stepperContainerCard}>
-                      <View style={styles.stepperIconsRow}>
-                        {/* Step 1: Assigned */}
-                        <View style={styles.stepItem}>
-                          <View style={[styles.stepCircleIcon, step >= 1 && styles.stepCircleActive]}>
-                            <Text style={[styles.stepIconEmoji, step >= 1 && styles.stepIconEmojiActive]}>📋</Text>
-                          </View>
-                          <Text style={[styles.stepLabel, step >= 1 && styles.stepLabelActive]}>Assigned</Text>
-                        </View>
-
-                        {/* Connecting Line 1 */}
-                        <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
-
-                        {/* Step 2: Picked Up */}
-                        <View style={styles.stepItem}>
-                          <View style={[styles.stepCircleIcon, step >= 2 && styles.stepCircleActive]}>
-                            <Text style={[styles.stepIconEmoji, step >= 2 && styles.stepIconEmojiActive]}>🏪</Text>
-                          </View>
-                          <Text style={[styles.stepLabel, step >= 2 && styles.stepLabelActive]}>Picked Up</Text>
-                        </View>
-
-                        {/* Connecting Line 2 */}
-                        <View style={[styles.stepLine, step >= 3 && styles.stepLineActive]} />
-
-                        {/* Step 3: On the Way */}
-                        <View style={styles.stepItem}>
-                          <View style={[styles.stepCircleIcon, step >= 3 && styles.stepCircleActive]}>
-                            <Text style={[styles.stepIconEmoji, step >= 3 && styles.stepIconEmojiActive]}>🛵</Text>
-                          </View>
-                          <Text style={[styles.stepLabel, step >= 3 && styles.stepLabelActive]}>On the Way</Text>
-                        </View>
-
-                        {/* Connecting Line 3 */}
-                        <View style={[styles.stepLine, step >= 4 && styles.stepLineActive]} />
-
-                        {/* Step 4: Delivered */}
-                        <View style={styles.stepItem}>
-                          <View style={[styles.stepCircleIcon, step >= 4 && styles.stepCircleActive]}>
-                            <Text style={[styles.stepIconEmoji, step >= 4 && styles.stepIconEmojiActive]}>✓</Text>
-                          </View>
-                          <Text style={[styles.stepLabel, step >= 4 && styles.stepLabelActive]}>Delivered</Text>
-                        </View>
-                      </View>
-
-                      {/* Main Dynamic Action Button */}
-                      <TouchableOpacity
-                        style={[
-                          styles.heroActionButton,
-                          step === 4 && { backgroundColor: '#16A34A' },
-                          updatingId === orderIdStr && { opacity: 0.7 },
-                        ]}
-                        onPress={() => handleNextStatus(orderIdStr, step)}
-                        disabled={step === 4 || updatingId === orderIdStr}
-                      >
-                        {updatingId === orderIdStr ? (
-                          <ActivityIndicator size="small" color="#FFF" />
-                        ) : (
-                          <Text style={styles.heroActionButtonText}>
-                            {step === 1 && '🏪 Pick Up Order (Arrived at Store)'}
-                            {step === 2 && '🛵 Start Delivery (Out for Delivery)'}
-                            {step === 3 && '✅ Mark Order Delivered'}
-                            {step === 4 && '🎉 Order Delivered Successfully'}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* 2. Side-by-Side Two Column Contact Cards */}
-                    <View style={styles.twoColumnRow}>
-                      {/* Left Box: Restaurant */}
-                      <View style={styles.columnBox}>
-                        <View style={styles.boxHeader}>
-                          <View style={styles.storeIconCircle}>
-                            <Text style={{ fontSize: 14 }}>🏪</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.boxTitle} numberOfLines={1}>{restaurantName}</Text>
-                            <Text style={styles.boxSub}>Pickup Location</Text>
-                          </View>
-                          <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(storePhone)}>
-                            <Text style={styles.btnCallGreenText}>📞 Call Store</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.addressGrayBox}>
-                          <Text style={styles.addressBoxTitle}>ADDRESS</Text>
-                          <Text style={styles.addressBoxValue}>{restaurantAddress}</Text>
-                        </View>
-                      </View>
-
-                      {/* Right Box: Customer */}
-                      <View style={styles.columnBox}>
-                        <View style={styles.boxHeader}>
-                          <View style={styles.userIconCircle}>
-                            <Text style={{ fontSize: 14 }}>👤</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.boxTitle} numberOfLines={1}>{customerName}</Text>
-                            <Text style={styles.boxSub}>Delivery Recipient</Text>
-                          </View>
-                          <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(customerPhone)}>
-                            <Text style={styles.btnCallGreenText}>📞 Call Customer</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.addressGrayBox}>
-                          <Text style={styles.addressBoxTitle}>DELIVERY ADDRESS</Text>
-                          <Text style={styles.addressBoxValue}>{customerAddress}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* 3. Order Items & Collectable Cash Box */}
-                    <View style={styles.itemsCashCard}>
-                      <Text style={styles.itemsCardHeader}>Order Items & Collectable Cash</Text>
-                      <View style={styles.dashedLineDivider} />
-
-                      {items.map((dish, i) => (
-                        <View key={i} style={styles.dishRow}>
-                          <Text style={styles.dishName}>{dish.quantity || 1}x {dish.name || 'Food Item'}</Text>
-                          <Text style={styles.dishPrice}>₹{((dish.price || totalAmount) * (dish.quantity || 1)).toFixed(2)}</Text>
-                        </View>
-                      ))}
-
-                      <View style={styles.dashedLineDivider} />
-
-                      {/* Payment Footer Row */}
-                      <View style={styles.cashFooterRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={{ fontSize: 16 }}>💵</Text>
-                          <Text style={styles.collectCashText}>
-                            {paymentMethod === 'COD' ? 'COLLECT CASH FROM CUSTOMER' : 'PAID ONLINE VIA UPI'}
-                          </Text>
-                        </View>
-                        <Text style={styles.totalCashAmount}>₹{totalAmount.toFixed(2)}</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })
-            )}
-          </ScrollView>
-        )}
+                })
+              )}
+            </ScrollView>
+          );
+        })()}
 
         {/* 3. D'BOY RIDER TAB */}
         {activeTab === 'dboy' && (
@@ -577,7 +763,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dboyName}>{currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}</Text>
                   <Text style={styles.dboyRole}>🚴 Delivery Partner (MongoDB Synced)</Text>
-                  <Text style={styles.dboyRating}>⭐ 4.9 Rating ({orders.length} Active Orders)</Text>
+                  <Text style={styles.dboyRating}>{orders.length} Active Orders</Text>
                 </View>
               </View>
 
@@ -622,7 +808,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
               <Text style={styles.profileLabel}>KYC Status: <Text style={{ color: '#16A34A', fontWeight: '700' }}>VERIFIED ✅</Text></Text>
 
               <TouchableOpacity style={styles.btnLogoutFull} onPress={handleLogout}>
-                <Text style={styles.btnLogoutFullText}>Logout from Account 🚪</Text>
+                <Text style={styles.btnLogoutFullText}>Logout from Account</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -631,42 +817,91 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
 
       {/* 🔹 FIXED BOTTOM NAVIGATION BAR */}
       <View style={styles.bottomNavBar}>
-        {/* Tab 1: Dashboard */}
-        <TouchableOpacity
-          style={styles.bottomNavTab}
-          onPress={() => setActiveTab('dashboard')}
-        >
-          <Text style={[styles.bottomNavIcon, activeTab === 'dashboard' && styles.bottomNavIconActive]}>📊</Text>
-          <Text style={[styles.bottomNavLabel, activeTab === 'dashboard' && styles.bottomNavLabelActive]}>Dashboard</Text>
-        </TouchableOpacity>
-
-        {/* Tab 2: Orders */}
-        <TouchableOpacity
-          style={styles.bottomNavTab}
-          onPress={() => setActiveTab('orders')}
-        >
-          <Text style={[styles.bottomNavIcon, activeTab === 'orders' && styles.bottomNavIconActive]}>📋</Text>
-          <Text style={[styles.bottomNavLabel, activeTab === 'orders' && styles.bottomNavLabelActive]}>Orders</Text>
-        </TouchableOpacity>
-
-        {/* Tab 3: D'Boy */}
-        <TouchableOpacity
-          style={styles.bottomNavTab}
-          onPress={() => setActiveTab('dboy')}
-        >
-          <Text style={[styles.bottomNavIcon, activeTab === 'dboy' && styles.bottomNavIconActive]}>🚴</Text>
-          <Text style={[styles.bottomNavLabel, activeTab === 'dboy' && styles.bottomNavLabelActive]}>D'Boy</Text>
-        </TouchableOpacity>
-
-        {/* Tab 4: Settings */}
-        <TouchableOpacity
-          style={styles.bottomNavTab}
-          onPress={() => setActiveTab('settings')}
-        >
-          <Text style={[styles.bottomNavIcon, activeTab === 'settings' && styles.bottomNavIconActive]}>⚙️</Text>
-          <Text style={[styles.bottomNavLabel, activeTab === 'settings' && styles.bottomNavLabelActive]}>Settings</Text>
-        </TouchableOpacity>
+        {[
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'orders', label: 'Orders' },
+          { id: 'dboy', label: "D'Boy" },
+          { id: 'settings', label: 'Settings' },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={styles.bottomNavTab}
+              onPress={() => setActiveTab(tab.id as any)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.navIconContainer}>
+                {renderDeliveryNavIcon(tab.id, isActive)}
+              </View>
+              <Text style={[styles.bottomNavLabel, isActive && styles.bottomNavLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+
+      {/* Sidebar Drawer Component */}
+      <DeliverySidebarDrawer
+        visible={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        activeTab={activeTab}
+        onSelectTab={(tabId) => setActiveTab(tabId as any)}
+        onLogout={handleLogout}
+        currentUser={currentUser}
+        isOnline={isOnline}
+        onToggleOnline={setIsOnline}
+      />
+
+      {/* Live Order Notifications Modal */}
+      <Modal
+        visible={showNotifModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNotifModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.notifModalCard}>
+            <View style={styles.notifModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 20 }}>🔔</Text>
+                <Text style={styles.notifModalTitle}>Live Order Alerts</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowNotifModal(false)}>
+                <Text style={styles.notifModalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {notifications.length === 0 ? (
+                <Text style={styles.emptyNotifText}>No notifications right now.</Text>
+              ) : (
+                notifications.map((n) => (
+                  <View key={n.id} style={styles.notifCardItem}>
+                    <View style={styles.notifCardHeader}>
+                      <Text style={styles.notifCardTitle}>{n.title}</Text>
+                      <Text style={styles.notifCardTime}>{n.time}</Text>
+                    </View>
+                    <Text style={styles.notifCardMessage}>{n.message}</Text>
+                    {n.orderId && (
+                      <TouchableOpacity
+                        style={styles.btnNotifAction}
+                        onPress={() => {
+                          setShowNotifModal(false);
+                          setActiveTab('orders');
+                        }}
+                      >
+                        <Text style={styles.btnNotifActionText}>View & Deliver Order 🛵</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -676,6 +911,300 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    backgroundColor: '#FFF7ED',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFEDD5',
+  },
+  menuIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  menuIconText: {
+    fontSize: 20,
+    color: '#EA580C',
+    fontWeight: '800',
+  },
+  headerTitleBox: {
+    alignItems: 'center',
+  },
+  portalLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#EA580C',
+    letterSpacing: 0.5,
+  },
+  currentTabLabel: {
+    fontSize: FONT_SIZE.sm + 1,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 1,
+  },
+  notifBellBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    position: 'relative',
+  },
+  notifBadgeCircle: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  notifModalCard: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  notifModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  notifModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  notifModalClose: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#64748B',
+    padding: 4,
+  },
+  emptyNotifText: {
+    textAlign: 'center',
+    color: '#64748B',
+    paddingVertical: 20,
+  },
+  notifCardItem: {
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  notifCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  notifCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  notifCardTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  notifCardMessage: {
+    fontSize: 12,
+    color: '#475569',
+    marginVertical: 4,
+  },
+  btnNotifAction: {
+    backgroundColor: '#EA580C',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  btnNotifActionText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  // 🔹 USER IMAGE REFERENCE MATCHING REQUEST CARD STYLES
+  requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  requestHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  storeIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  restaurantTitleName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  readyPillBadge: {
+    backgroundColor: '#FEF9C3',
+    borderWidth: 1,
+    borderColor: '#FEF08A',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  readyPillBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  restaurantAddressText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  payoutCardBox: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+    minWidth: 140,
+    marginBottom: 14,
+  },
+  payoutCardLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  payoutCardValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#059669',
+    marginTop: 2,
+  },
+  detailsGreyBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  detailsSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.6,
+  },
+  detailsAddressVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  detailsBillVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  requestActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  btnDeclineRedOutlined: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  btnDeclineRedText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  btnAcceptGreenSolid: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  btnAcceptGreenText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
   headerCard: {
     backgroundColor: COLORS.white,
     paddingHorizontal: SPACING.md,
@@ -1353,13 +1882,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 4,
   },
-  bottomNavIcon: {
-    fontSize: 20,
-    opacity: 0.6,
+  navIconContainer: {
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 2,
-  },
-  bottomNavIconActive: {
-    opacity: 1,
   },
   bottomNavLabel: {
     fontSize: 11,

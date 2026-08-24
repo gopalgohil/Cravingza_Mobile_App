@@ -71,13 +71,35 @@ export const SignupScreen = ({ navigation }: any) => {
   };
 
   const handleSignup = async () => {
-    if (!fullName || !email || !password || !confirmPassword) {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPhone = phone ? phone.trim().replace(/\D/g, '') : '';
+
+    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
       Alert.alert('Validation Error', 'Please fill in all required fields including Confirm Password.');
       return;
     }
 
     if (password !== confirmPassword) {
       Alert.alert('Password Mismatch', 'Password and Confirm Password do not match.');
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert('Weak Password', 'Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password) ||
+      !/[^A-Za-z0-9]/.test(password)
+    ) {
+      Alert.alert(
+        'Password Requirements',
+        'Password must contain at least:\n• One uppercase letter (A-Z)\n• One lowercase letter (a-z)\n• One number (0-9)\n• One special character (e.g. @, #, $, !)'
+      );
       return;
     }
 
@@ -96,15 +118,15 @@ export const SignupScreen = ({ navigation }: any) => {
     setLoading(true);
     try {
       console.log('Sending Signup Request to Cravingza Backend...', {
-        name: fullName,
-        email,
+        name: trimmedName,
+        email: trimmedEmail,
         role: backendRole,
       });
 
       const res = await signupApi({
-        name: fullName,
-        email,
-        phone,
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
         password,
         confirmPassword,
         role: backendRole,

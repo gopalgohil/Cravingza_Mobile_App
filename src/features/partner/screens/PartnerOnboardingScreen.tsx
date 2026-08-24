@@ -650,9 +650,10 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                 )}
 
                 <CustomButton
-                  title="Continue to Documents ➔"
+                  title="Continue to Documents"
                   onPress={handleNextStep1}
                   style={styles.submitBtn}
+                  showArrow={true}
                 />
               </View>
             )}
@@ -845,12 +846,17 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                   <View style={{ flex: 1 }}>
                     {partnerType === 'restaurant' ? (
                       <CustomButton
-                        title="Submit Restaurant Application 🎉"
+                        title="Submit Application 🎉"
                         onPress={handleSubmitApplication}
                         loading={loading}
+                        showArrow={false}
                       />
                     ) : (
-                      <CustomButton title="Continue to Bank Payouts ➔" onPress={handleNextStep2} />
+                      <CustomButton
+                        title="Continue to Bank Payouts"
+                        onPress={handleNextStep2}
+                        showArrow={true}
+                      />
                     )}
                   </View>
                 </View>
@@ -906,11 +912,12 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                     <CustomButton
                       title={
                         partnerType === 'restaurant'
-                          ? 'Submit Restaurant Application 🎉'
+                          ? 'Submit Application 🎉'
                           : 'Submit Driver Application 🎉'
                       }
                       onPress={handleSubmitApplication}
                       loading={loading}
+                      showArrow={false}
                     />
                   </View>
                 </View>

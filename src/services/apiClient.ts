@@ -56,7 +56,15 @@ export const apiClient = async (endpoint: string, options: RequestInit = {}) => 
   }
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || `HTTP ${response.status} Error`);
+    let errorMsg = data.message || data.error || `HTTP ${response.status} Error`;
+    if (Array.isArray(data.errors) && data.errors.length > 0) {
+      const details = data.errors.map((e: any) => e.message || (typeof e === 'string' ? e : JSON.stringify(e))).join('\n• ');
+      errorMsg = `${errorMsg}:\n• ${details}`;
+    }
+    const err = new Error(errorMsg);
+    (err as any).response = data;
+    (err as any).errors = data.errors;
+    throw err;
   }
 
 

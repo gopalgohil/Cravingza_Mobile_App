@@ -131,7 +131,6 @@ export const AdminSidebarDrawer: React.FC<AdminSidebarDrawerProps> = ({
 
           {/* Bottom Logout Button with Modern Logout Icon */}
           <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.8}>
-            <ModernLogoutIcon color="#DC2626" size={20} />
             <Text style={styles.logoutBtnText}>Logout Account</Text>
           </TouchableOpacity>
         </View>
