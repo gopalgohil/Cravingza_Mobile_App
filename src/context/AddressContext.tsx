@@ -28,9 +28,37 @@ const AddressContext = createContext<AddressContextType>({
   saveNewAddress: async () => {},
 });
 
+let memoryAddresses: AddressItem[] = [];
+let memorySelectedAddress: AddressItem | null = null;
+
+export const setAddressesFromLogin = (rawAddresses: any[]) => {
+  if (Array.isArray(rawAddresses) && rawAddresses.length > 0) {
+    const formatted: AddressItem[] = rawAddresses.map((a: any) => ({
+      id: a._id || a.id,
+      label: a.label || 'Home',
+      addressLine: a.addressLine || a.street || '',
+      city: a.city || 'Noida',
+      pincode: a.pincode || a.zipCode || '201301',
+      isDefault: !!a.isDefault,
+    }));
+    memoryAddresses = formatted;
+    memorySelectedAddress = formatted.find((a) => a.isDefault) || formatted[0];
+  }
+};
+
 export const AddressProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [selectedAddress, setSelectedAddress] = useState<AddressItem | null>(null);
-  const [savedAddresses, setSavedAddresses] = useState<AddressItem[]>([]);
+  const [selectedAddress, setSelectedAddressState] = useState<AddressItem | null>(memorySelectedAddress);
+  const [savedAddresses, setSavedAddressesState] = useState<AddressItem[]>(memoryAddresses);
+
+  const setSelectedAddress = (addr: AddressItem | null) => {
+    memorySelectedAddress = addr;
+    setSelectedAddressState(addr);
+  };
+
+  const setSavedAddresses = (addrs: AddressItem[]) => {
+    memoryAddresses = addrs;
+    setSavedAddressesState(addrs);
+  };
 
   const fetchUserAddresses = async () => {
     if (!getAuthToken()) {
@@ -60,6 +88,12 @@ export const AddressProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log('Fetch Addresses API Note:', err.message);
     }
   };
+
+  useEffect(() => {
+    if (getAuthToken()) {
+      fetchUserAddresses();
+    }
+  }, []);
 
   const saveNewAddress = async (newAddr: UserAddressPayload) => {
     try {

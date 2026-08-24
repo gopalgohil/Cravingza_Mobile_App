@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { setAuthToken } from '../services/apiClient';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { getAuth } from '@react-native-firebase/auth';
+import { setAddressesFromLogin } from './AddressContext';
 
 export interface UserProfileData {
   id?: string;
@@ -57,6 +58,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userToken) {
       setToken(userToken);
       setAuthToken(userToken);
+    }
+    if (user && Array.isArray((user as any).addresses)) {
+      setAddressesFromLogin((user as any).addresses);
     }
   };
 
