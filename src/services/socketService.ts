@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client/dist/socket.io.js';
 import { BASE_URL } from './apiClient';
 
 let socket: Socket | null = null;
