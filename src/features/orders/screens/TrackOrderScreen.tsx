@@ -341,40 +341,46 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             </View>
 
             {/* Payment Method & Bill Breakdown */}
-            <View style={styles.billBreakdownSection}>
-              <View style={styles.billRowItem}>
-                <Text style={styles.billRowLabel}>Payment Method</Text>
-                <View style={styles.codBadgePill}>
-                  <Text style={styles.codBadgeText}>
-                    🟡 {(orderDetail?.paymentMethod || orderDetail?.paymentType || 'CASH ON DELIVERY').toUpperCase()}
-                  </Text>
+            {(() => {
+              const calcSubtotal = items.reduce((sum: number, it: any) => sum + Number(it.price || 0) * Number(it.quantity || 1), 0);
+              const calcDelFee = Number(orderDetail?.deliveryFee ?? 30);
+              const calcTax = Number((calcSubtotal * 0.05).toFixed(2));
+              const calcTotal = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || (calcSubtotal + calcDelFee + calcTax)).toFixed(2);
+              return (
+                <View style={styles.billBreakdownSection}>
+                  <View style={styles.billRowItem}>
+                    <Text style={styles.billRowLabel}>Payment Method</Text>
+                    <View style={styles.codBadgePill}>
+                      <Text style={styles.codBadgeText}>
+                        🟡 {(orderDetail?.paymentMethod || orderDetail?.paymentType || 'CASH ON DELIVERY').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.billRowItem}>
+                    <Text style={styles.billRowLabel}>Subtotal</Text>
+                    <Text style={styles.billRowValue}>₹{calcSubtotal.toFixed(2)}</Text>
+                  </View>
+
+                  <View style={styles.billRowItem}>
+                    <Text style={styles.billRowLabel}>Delivery Fee</Text>
+                    <Text style={styles.billRowValue}>₹{calcDelFee.toFixed(2)}</Text>
+                  </View>
+
+                  <View style={styles.billRowItem}>
+                    <Text style={styles.billRowLabel}>Taxes & Charges (5%)</Text>
+                    <Text style={styles.billRowValue}>₹{calcTax.toFixed(2)}</Text>
+                  </View>
+
+                  <View style={styles.totalBillDivider} />
+
+                  <View style={styles.totalBillRow}>
+                    <Text style={styles.totalBillLabel}>Total Bill</Text>
+                    <Text style={styles.totalBillAmountText}>₹{calcTotal}</Text>
+                  </View>
                 </View>
-              </View>
-
-              <View style={styles.billRowItem}>
-                <Text style={styles.billRowLabel}>Subtotal</Text>
-                <Text style={styles.billRowValue}>
-                  ₹{(totalPrice > 44.75 ? totalPrice - 44.75 : totalPrice).toFixed(2)}
-                </Text>
-              </View>
-
-              <View style={styles.billRowItem}>
-                <Text style={styles.billRowLabel}>Delivery Fee</Text>
-                <Text style={styles.billRowValue}>₹30.00</Text>
-              </View>
-
-              <View style={styles.billRowItem}>
-                <Text style={styles.billRowLabel}>Taxes & Charges (5%)</Text>
-                <Text style={styles.billRowValue}>₹14.75</Text>
-              </View>
-
-              <View style={styles.totalBillDivider} />
-
-              <View style={styles.totalBillRow}>
-                <Text style={styles.totalBillLabel}>Total Bill</Text>
-                <Text style={styles.totalBillAmountText}>₹{totalPrice.toFixed(2)}</Text>
-              </View>
-            </View>
+              );
+            })()}
 
             {/* CTA Action Buttons: Reorder Food & Cancel Order */}
             <View style={styles.actionButtonsStack}>
