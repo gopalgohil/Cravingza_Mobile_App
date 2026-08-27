@@ -130,7 +130,17 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
+        {label ? (
+          label.includes('*') ? (
+            <Text style={styles.label}>
+              {label.split('*')[0]}
+              <Text style={{ color: '#EF4444', fontWeight: '900' }}> *</Text>
+              {label.split('*')[1] || ''}
+            </Text>
+          ) : (
+            <Text style={styles.label}>{label}</Text>
+          )
+        ) : null}
         {headerActionText && onHeaderActionPress ? (
           <TouchableOpacity onPress={onHeaderActionPress}>
             <Text style={styles.headerActionText}>{headerActionText}</Text>

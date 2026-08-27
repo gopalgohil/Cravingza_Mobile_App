@@ -104,7 +104,7 @@ export const SignupScreen = ({ navigation }: any) => {
     }
 
     if (!agreeTerms) {
-      Alert.alert('Terms Error', 'Please accept the Terms & Privacy Policy.');
+      Alert.alert('Terms Required', 'Please accept the Terms & Privacy Policy to create an account.');
       return;
     }
 

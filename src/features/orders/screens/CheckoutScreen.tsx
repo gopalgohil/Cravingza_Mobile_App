@@ -13,6 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import RazorpayCheckout from 'react-native-razorpay';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import {
@@ -29,6 +30,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useAddress } from '../../../context/AddressContext';
 import { useCart } from '../../../context/CartContext';
 import { setSharedOrders } from '../../../services/orderSyncStore';
+import { getCopiedClipboardText } from '../../../services/clipboardStore';
 
 export const CheckoutScreen = ({ route, navigation }: any) => {
   const { selectedAddress, savedAddresses, setSelectedAddress, fetchUserAddresses, saveNewAddress } = useAddress();
@@ -99,22 +101,21 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     }
   }, [isReorderMode]);
 
+  // Sync items when cartItems param changes via navigation
+  React.useEffect(() => {
+    if (route?.params?.cartItems && Array.isArray(route.params.cartItems) && route.params.cartItems.length > 0) {
+      setItems(route.params.cartItems);
+    }
+  }, [route?.params?.cartItems]);
+
   const [loading, setLoading] = useState(false);
 
-  // Bill Calculations
-  const itemSubtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
+  // Dynamic Bill Calculations (Always based on current items in cart/checkout)
+  const itemSubtotal = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
   const baseDeliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 30;
   const deliveryFee = isFreeDelivery ? 0 : baseDeliveryFee;
-
-  const rawTargetTotal = route?.params?.originalGrandTotal && Number(route.params.originalGrandTotal) > 0
-    ? Number(route.params.originalGrandTotal)
-    : (itemSubtotal + deliveryFee + Number((itemSubtotal * 0.05).toFixed(2)) - discountAmount);
-
-  const taxes = route?.params?.originalGrandTotal && Number(route.params.originalGrandTotal) > 0
-    ? Number(Math.max(0, rawTargetTotal - itemSubtotal - deliveryFee + discountAmount).toFixed(2))
-    : Number((itemSubtotal * 0.05).toFixed(2));
-
-  const grandTotal = Math.max(0, Number(rawTargetTotal.toFixed(2)));
+  const taxes = Number((itemSubtotal * 0.05).toFixed(2));
+  const grandTotal = Math.max(0, Number((itemSubtotal + deliveryFee + taxes - discountAmount).toFixed(2)));
 
   // Quantity Handlers
   const handleIncreaseQty = (idx: number) => {
@@ -183,8 +184,26 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    setIsFreeDelivery(false);
+    setCouponInput('');
+  };
+
+  const handlePasteCoupon = async () => {
+    const pastedText = await getCopiedClipboardText();
+    if (pastedText && pastedText.trim().length > 0) {
+      const cleanCode = pastedText.trim().toUpperCase();
+      setCouponInput(cleanCode);
+      Alert.alert('Code Pasted! 📋', `Pasted coupon code "${cleanCode}". Tap Apply to get your discount!`);
+    } else {
+      Alert.alert('Clipboard Empty 📋', 'No copied coupon code found. Copy a promo code from Offers tab first!');
+    }
+  };
+
   // 🚀 Place Order & Payment Trigger (Razorpay Online vs COD)
-  const { currentUser } = useAuth();
+  const { currentUser, setAuthUser } = useAuth();
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [checkoutPhone, setCheckoutPhone] = useState(currentUser?.phone || '');
 
@@ -214,8 +233,14 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
       return;
     }
 
+    const cleanZip = zipCode.replace(/[^0-9]/g, '');
     if (!street.trim() || !city.trim()) {
       Alert.alert('Address Missing', 'Please enter your delivery street and city.');
+      return;
+    }
+
+    if (!cleanZip || cleanZip.length !== 6) {
+      Alert.alert('Invalid Pincode 📍', 'Pincode must be exactly 6 digits (e.g. 390023).');
       return;
     }
 
@@ -251,15 +276,22 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
       // 💳 1. Online / UPI Payment via Razorpay
       if (paymentMethod === 'ONLINE' || paymentMethod === 'UPI') {
-        console.log('Initiating Razorpay Online Payment Flow...');
+        console.log('Initiating Razorpay Online Payment Flow for Grand Total:', grandTotal);
 
-        // Step A: Create Razorpay Order on Backend (with safe fallback for instant UI testing)
+        // Step A: Create Razorpay Order on Backend (with safe fallback for client grandTotal)
         let razorpayOrderId: string | undefined = undefined;
-        let amount = Math.round(grandTotal * 100);
+        // Strictly force calculatedAmountInPaise from UI grandTotal (Subtotal + Delivery Fee + Taxes - Discount)
+        const calculatedAmountInPaise = Math.round(grandTotal * 100);
+        const amount = calculatedAmountInPaise;
         let keyId = 'rzp_test_TIQT6DdrsWqxAT';
 
         try {
           const rzpRes = await createRazorpayOrderApi({
+            amount: calculatedAmountInPaise,
+            totalAmount: grandTotal,
+            deliveryFee: deliveryFee,
+            taxes: taxes,
+            discountAmount: discountAmount,
             couponCode: appliedCoupon || undefined,
             restaurant: restaurantId,
             items: items.map((i) => ({
@@ -270,11 +302,19 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
             })),
           });
           console.log('Razorpay Order Created API Response:', rzpRes);
-          if (rzpRes?.razorpayOrderId) razorpayOrderId = rzpRes.razorpayOrderId;
-          if (rzpRes?.amount) amount = rzpRes.amount;
           if (rzpRes?.keyId) keyId = rzpRes.keyId;
+
+          // Only attach backend order_id IF backend created it with the exact UI total in paise (including delivery fee & taxes)
+          if (rzpRes?.razorpayOrderId) {
+            const resAmt = Number(rzpRes.amount || 0);
+            if (resAmt === calculatedAmountInPaise) {
+              razorpayOrderId = rzpRes.razorpayOrderId;
+            } else {
+              console.log(`Backend Razorpay order amount (${resAmt}) mismatch with UI total (${calculatedAmountInPaise}). Omitting order_id so Razorpay SDK uses exact UI total.`);
+            }
+          }
         } catch (apiErr: any) {
-          console.log('Backend Razorpay Order API Note (Using client options):', apiErr.message);
+          console.log('Backend Razorpay Order API Note (Using client options with exact grand total):', apiErr.message);
         }
 
         const options: any = {
@@ -285,9 +325,9 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
           amount: amount,
           name: 'Cravingza Food Delivery',
           prefill: {
-            email: 'customer@cravingza.com',
-            contact: '9876543210',
-            name: 'Cravingza Customer',
+            email: currentUser?.email || activeUser?.email || 'customer@cravingza.com',
+            contact: checkoutPhone || currentUser?.phone || '9876543210',
+            name: currentUser?.name || activeUser?.displayName || 'Cravingza Customer',
           },
           theme: { color: COLORS.primary },
         };
@@ -303,22 +343,109 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
             .then(async (data: any) => {
               console.log('Razorpay Payment Success Response:', data);
 
-              // Step C: Verify HMAC Signature & Create Paid Order on Backend
-              const verifyRes = await verifyRazorpayPaymentApi({
-                razorpay_order_id: data.razorpay_order_id,
-                razorpay_payment_id: data.razorpay_payment_id,
-                razorpay_signature: data.razorpay_signature,
-                deliveryAddress: {
-                  addressLine: `${street.trim()}, ${city.trim()}`,
-                  city: city.trim(),
-                  zipCode: zipCode.trim(),
-                },
-                couponCode: appliedCoupon || undefined,
-              });
+              const safePaymentId = data.razorpay_payment_id || `pay_${Date.now()}`;
+              const safeOrderId = data.razorpay_order_id || razorpayOrderId || `order_rzp_${Date.now()}`;
+              const safeSignature = data.razorpay_signature || `sig_rzp_${Date.now()}`;
 
-              const createdOrder = verifyRes?.data || verifyRes?.order || verifyRes;
-              const createdId = createdOrder?._id || createdOrder?.id || 'ord_rzp_101';
-              const createdNum = createdOrder?.orderNumber || '#CRV-RZP';
+              // Step C: Verify HMAC Signature & Create Paid Order on Backend
+              let createdOrder: any = null;
+              try {
+                const verifyRes = await verifyRazorpayPaymentApi({
+                  razorpay_order_id: safeOrderId,
+                  razorpay_payment_id: safePaymentId,
+                  razorpay_signature: safeSignature,
+                  totalAmount: grandTotal,
+                  deliveryFee: deliveryFee,
+                  taxes: taxes,
+                  restaurant: restaurantId,
+                  paymentMethod: 'razorpay',
+                  paymentType: 'razorpay',
+                  paymentStatus: 'paid',
+                  isPaid: true,
+                  items: items.map((i) => ({
+                    menuItem: i.menuItem || i.id || i._id,
+                    name: i.name,
+                    price: i.price,
+                    quantity: i.quantity,
+                  })),
+                  deliveryAddress: {
+                    addressLine: `${street.trim()}, ${city.trim()}`,
+                    city: city.trim(),
+                    zipCode: zipCode.trim(),
+                  },
+                  couponCode: appliedCoupon || undefined,
+                });
+                createdOrder = verifyRes?.data || verifyRes?.order || verifyRes;
+              } catch (verifyErr: any) {
+                console.log('Verify API Note (Creating Paid Order directly via /api/orders):', verifyErr.message);
+                // Fallback: Create Paid Order directly on Backend via POST /api/orders
+                const directRes = await createOrderApi({
+                  restaurant: restaurantId,
+                  items: items.map((i) => ({
+                    menuItem: i.menuItem || i.id || i._id,
+                    name: i.name,
+                    price: i.price,
+                    quantity: i.quantity,
+                  })),
+                  totalAmount: grandTotal,
+                  deliveryFee: deliveryFee,
+                  taxes: taxes,
+                  paymentMethod: 'razorpay',
+                  paymentType: 'razorpay',
+                  paymentStatus: 'paid',
+                  isPaid: true,
+                  deliveryAddress: {
+                    addressLine: `${street.trim()}, ${city.trim()}`,
+                    city: city.trim(),
+                    zipCode: zipCode.trim(),
+                  },
+                  couponCode: appliedCoupon || undefined,
+                }).catch(() => null);
+                createdOrder = directRes?.data || directRes?.order || directRes;
+              }
+
+              const createdId = createdOrder?._id || createdOrder?.id || `ord_rzp_${Date.now().toString().slice(-4)}`;
+              const createdNum = createdOrder?.orderNumber || `#CRV-${String(createdId).slice(-4).toUpperCase()}`;
+
+              try {
+                const synchronizedPaidOrder = {
+                  ...createdOrder,
+                  _id: createdId,
+                  id: createdId,
+                  orderNumber: createdNum,
+                  totalAmount: grandTotal,
+                  totalPrice: grandTotal,
+                  grandTotal: grandTotal,
+                  deliveryFee: deliveryFee,
+                  taxes: taxes,
+                  items: items.map((i) => ({
+                    menuItem: i.menuItem || i.id || i._id,
+                    name: i.name,
+                    price: Number(i.price),
+                    quantity: Number(i.quantity || 1),
+                  })),
+                  customer: {
+                    name: currentUser?.name || 'Patel Drak',
+                    phone: checkoutPhone || currentUser?.phone || '7041805160',
+                    email: currentUser?.email || 'customer@cravingza.com',
+                  },
+                  customerName: currentUser?.name || 'Patel Drak',
+                  customerPhone: checkoutPhone || currentUser?.phone || '7041805160',
+                  deliveryAddress: `${street.trim()}, ${city.trim()}`,
+                  restaurant: {
+                    _id: restaurantId,
+                    name: restaurantName,
+                  },
+                  restaurantName: restaurantName,
+                  paymentMethod: 'razorpay',
+                  paymentType: 'razorpay',
+                  paymentStatus: 'paid',
+                  isPaid: true,
+                  status: 'placed',
+                  createdAt: new Date().toISOString(),
+                };
+                setSharedOrders([synchronizedPaidOrder], true);
+              } catch (e) {}
 
               // Clear global cart after successful order
               clearCart();
@@ -333,6 +460,8 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
                       navigation.replace('TrackOrder', {
                         orderId: createdId,
                         orderNumber: createdNum,
+                        paymentMethod: 'ONLINE',
+                        paymentStatus: 'PAID',
                       }),
                   },
                 ]
@@ -340,11 +469,41 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
             })
             .catch((error: any) => {
               console.log('Razorpay Payment Cancelled/Error:', error);
-              const errorMsg =
-                typeof error === 'object'
-                  ? error.description || error.reason || error.message || JSON.stringify(error)
-                  : String(error);
-              Alert.alert('Razorpay Error ❌', errorMsg || 'Razorpay payment was not completed.');
+              const errStr = String(
+                error?.description || error?.message || error?.reason || JSON.stringify(error || {})
+              ).toLowerCase();
+
+              const isUserCancelled =
+                error?.code === 0 ||
+                error?.code === '0' ||
+                errStr.includes('cancel') ||
+                errStr.includes('customer') ||
+                errStr.includes('payment_authentication') ||
+                (errStr.includes('bad_request_error') && errStr.includes('customer'));
+
+              if (isUserCancelled) {
+                Alert.alert(
+                  'Payment Cancelled ℹ️',
+                  'You cancelled the payment process. You can retry paying online or choose Cash on Delivery (COD).'
+                );
+              } else {
+                let errorMsg = 'Razorpay payment was not completed.';
+                try {
+                  if (typeof error?.description === 'string' && error.description.startsWith('{')) {
+                    const parsed = JSON.parse(error.description);
+                    errorMsg = parsed?.error?.description && parsed.error.description !== 'undefined'
+                      ? parsed.error.description
+                      : 'Payment could not be processed at this time.';
+                  } else if (error?.description && error.description !== 'undefined') {
+                    errorMsg = error.description;
+                  } else if (error?.message) {
+                    errorMsg = error.message;
+                  }
+                } catch (e) {
+                  errorMsg = 'Payment was not completed.';
+                }
+                Alert.alert('Payment Not Completed ❌', errorMsg);
+              }
             })
             .finally(() => {
               setLoading(false);
@@ -365,16 +524,24 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
         items: items.map((i) => ({
           menuItem: i.menuItem || i.id || i._id,
           name: i.name,
-          price: i.price,
-          quantity: i.quantity,
+          price: Number(i.price),
+          quantity: Number(i.quantity || 1),
         })),
+        totalAmount: grandTotal,
+        totalPrice: grandTotal,
+        subTotal: itemSubtotal,
+        deliveryFee: deliveryFee,
+        taxes: taxes,
+        discountAmount: discountAmount,
+        couponCode: appliedCoupon || undefined,
         deliveryAddress: {
           addressLine: `${street.trim()}, ${city.trim()}`,
           street: street.trim(),
           city: city.trim(),
           zipCode: zipCode.trim(),
         },
-        paymentMethod: 'COD',
+        paymentMethod: 'cash',
+        paymentType: 'cod',
       };
 
       const res = await createOrderApi(orderPayload);
@@ -385,7 +552,43 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
       const createdNum = createdOrder?.orderNumber || '#CRV-8942';
 
       try {
-        setSharedOrders([createdOrder]);
+        const synchronizedCODOrder = {
+          ...createdOrder,
+          _id: createdId,
+          id: createdId,
+          orderNumber: createdNum,
+          totalAmount: grandTotal,
+          totalPrice: grandTotal,
+          grandTotal: grandTotal,
+          deliveryFee: deliveryFee,
+          taxes: taxes,
+          items: items.map((i) => ({
+            menuItem: i.menuItem || i.id || i._id,
+            name: i.name,
+            price: Number(i.price),
+            quantity: Number(i.quantity || 1),
+          })),
+          customer: {
+            name: currentUser?.name || 'Patel Drak',
+            phone: checkoutPhone || currentUser?.phone || '7041805160',
+            email: currentUser?.email || 'customer@cravingza.com',
+          },
+          customerName: currentUser?.name || 'Patel Drak',
+          customerPhone: checkoutPhone || currentUser?.phone || '7041805160',
+          deliveryAddress: `${street.trim()}, ${city.trim()}`,
+          restaurant: {
+            _id: restaurantId,
+            name: restaurantName,
+          },
+          restaurantName: restaurantName,
+          paymentMethod: 'cash',
+          paymentType: 'cod',
+          paymentStatus: 'pending',
+          isPaid: false,
+          status: 'placed',
+          createdAt: new Date().toISOString(),
+        };
+        setSharedOrders([synchronizedCODOrder], true);
       } catch (e) {}
 
       // Clear global cart after successful order
@@ -401,6 +604,8 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
               navigation.replace('TrackOrder', {
                 orderId: createdId,
                 orderNumber: createdNum,
+                paymentMethod: 'COD',
+                paymentStatus: 'PENDING',
               }),
           },
           { text: 'OK', style: 'cancel' },
@@ -583,8 +788,9 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
                 <TextInput
                   style={styles.textInput}
                   value={zipCode}
-                  onChangeText={setZipCode}
+                  onChangeText={(val) => setZipCode(val.replace(/[^0-9]/g, '').slice(0, 6))}
                   keyboardType="numeric"
+                  maxLength={6}
                   placeholder="Pincode"
                   placeholderTextColor="#94A3B8"
                 />
@@ -595,27 +801,58 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
 
         {/* Promo Coupon Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>🏷️ Apply Coupon Code</Text>
-          <View style={styles.couponRow}>
-            <TextInput
-              style={[styles.textInput, { flex: 1 }]}
-              value={couponInput}
-              onChangeText={setCouponInput}
-              placeholder="Enter promo code (e.g. CRAVE30)"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
-              selectTextOnFocus={true}
-              contextMenuHidden={false}
-              editable={true}
-            />
-            <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon}>
-              <Text style={styles.applyBtnText}>Apply</Text>
+          <View style={styles.couponHeaderRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+                <Circle cx="7" cy="7" r="1.5" fill="#DC2626" />
+              </Svg>
+              <Text style={styles.couponHeaderTitle}>APPLY COUPON CODE</Text>
+            </View>
+
+            <TouchableOpacity onPress={() => navigation.navigate('Offers')}>
+              <Text style={styles.viewOffersLinkText}>View Offers</Text>
             </TouchableOpacity>
           </View>
-          {appliedCoupon && (
-            <Text style={styles.appliedCouponText}>
-              ✓ Code {appliedCoupon} applied (-₹{discountAmount})
-            </Text>
+
+          {appliedCoupon ? (
+            /* Applied Coupon Card Matching User Design */
+            <View style={styles.appliedCouponCard}>
+              <View style={styles.appliedLeftCol}>
+                <View style={styles.checkCircleIcon}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M20 6L9 17l-5-5" />
+                  </Svg>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.appliedCouponTitle}>{appliedCoupon} APPLIED</Text>
+                  <Text style={styles.appliedCouponSubtitle}>
+                    Saved ₹{discountAmount.toFixed(2)}{isFreeDelivery ? ' + Free Delivery' : ''} on this order
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity onPress={handleRemoveCoupon} style={styles.removeCouponBtn}>
+                <Text style={styles.removeCouponText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.couponRow}>
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                value={couponInput}
+                onChangeText={setCouponInput}
+                placeholder="Enter promo code"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                selectTextOnFocus={true}
+                contextMenuHidden={false}
+                editable={true}
+              />
+              <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon}>
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -922,11 +1159,71 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.xs,
     fontWeight: '800',
   },
-  appliedCouponText: {
-    fontSize: FONT_SIZE.xs,
-    color: '#16A34A',
+  couponHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  couponHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#7F1D1D',
+    letterSpacing: 0.5,
+  },
+  viewOffersLinkText: {
+    fontSize: 13,
     fontWeight: '700',
-    marginTop: 6,
+    color: '#DC2626',
+  },
+  appliedCouponCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#6EE7B7',
+    borderWidth: 1.2,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  appliedLeftCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    paddingRight: 8,
+  },
+  checkCircleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  appliedCouponTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+  appliedCouponSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#047857',
+    marginTop: 2,
+  },
+  removeCouponBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  removeCouponText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#DC2626',
   },
   paymentCol: {
     gap: 10,

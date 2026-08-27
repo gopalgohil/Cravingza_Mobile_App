@@ -18,7 +18,7 @@ import { getOrderByIdApi, getUserOrdersApi, cancelOrderApi } from '../../custome
 import { useCart } from '../../../context/CartContext';
 
 export const TrackOrderScreen = ({ route, navigation }: any) => {
-  const { addToCart, clearCart } = useCart();
+  const { addToCart, clearCart, replaceCartWithItems } = useCart();
   const orderId = route?.params?.orderId || 'ord_101';
   const initialOrderNumber = route?.params?.orderNumber || '#CRV-8942';
 
@@ -73,7 +73,7 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
   const currentStatus = String(orderDetail?.status || 'preparing').toLowerCase();
   const currentOrderNum = orderDetail?.orderNumber || (orderDetail?._id ? `#CRV-${String(orderDetail._id).slice(-4).toUpperCase()}` : initialOrderNumber);
   const restaurantName = orderDetail?.restaurant?.name || orderDetail?.restaurantName || "Cravingza Partner Restaurant";
-  const totalPrice = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || orderDetail?.grandTotal || 354.49);
+  const totalPrice = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || orderDetail?.grandTotal || 339.74);
   
   const rawItems = Array.isArray(orderDetail?.items) && orderDetail.items.length > 0
     ? orderDetail.items
@@ -81,11 +81,21 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
         { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
       ];
 
-  const items = rawItems.map((it: any) => ({
-    name: it.name || it.itemName || 'Gourmet Dish Item',
-    quantity: Number(it.quantity || 1),
-    price: Number(it.price || 294.99),
-  }));
+  // 🔹 Group & Deduplicate items cleanly so backend 2X duplication never appears on Live Tracking UI
+  const itemMap: Record<string, { name: string; quantity: number; price: number }> = {};
+  rawItems.forEach((it: any) => {
+    const name = it.name || it.itemName || 'Gourmet Dish Item';
+    const price = Number(it.price || 294.99);
+    const qty = Number(it.quantity || 1);
+    if (!itemMap[name]) {
+      itemMap[name] = { name, quantity: qty, price };
+    } else {
+      // If same dish appears twice in array, keep the single intended order quantity
+      itemMap[name].quantity = Math.max(itemMap[name].quantity, qty);
+    }
+  });
+
+  const items = Object.values(itemMap);
 
   let deliveryAddress = 'A-18 arunachal flat,subhanpura, vadodara - 390023';
   const da = orderDetail?.deliveryAddress || orderDetail?.address;
@@ -131,9 +141,14 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
 
   // 🔄 Reorder Handler
   const handleReorder = () => {
-    clearCart();
     const originalTotal = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || totalPrice || 0);
     const originalDelFee = Number(orderDetail?.deliveryFee || 30);
+    const realRestId =
+      orderDetail?.restaurant?._id ||
+      orderDetail?.restaurant?.id ||
+      (typeof orderDetail?.restaurant === 'string' ? orderDetail?.restaurant : null) ||
+      orderDetail?.restaurantId ||
+      '68ad1e90ab29fa88687723b4';
 
     const reorderItems = items.map((it: any, idx: number) => ({
       menuItem: it.id || it.menuItem || `reorder_${idx}_${Date.now()}`,
@@ -142,24 +157,15 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
       quantity: Number(it.quantity || 1),
     }));
 
-    reorderItems.forEach((it: any) => {
-      addToCart(
-        {
-          id: it.menuItem,
-          name: it.name,
-          price: it.price,
-        },
-        orderDetail?.restaurant?._id || '6a71cf90ab29fa88687723b4',
-        restaurantName
-      );
-    });
+    replaceCartWithItems(reorderItems, realRestId, restaurantName);
 
-    safeAlert('Items Added to Cart! 🛒', `Items from ${restaurantName} added. Proceed to checkout?`, [
+    safeAlert('Items Added to Cart! 🛒', `Items from ${restaurantName} added with exact quantities & pricing. Proceed to checkout?`, [
       {
         text: 'Proceed to Checkout',
         onPress: () =>
           navigation.navigate('Checkout', {
             restaurantName,
+            restaurantId: realRestId,
             isReorder: true,
             skipAutoCoupon: true,
             deliveryFee: originalDelFee,
@@ -348,15 +354,20 @@ export const TrackOrderScreen = ({ route, navigation }: any) => {
             {(() => {
               const calcSubtotal = items.reduce((sum: number, it: any) => sum + Number(it.price || 0) * Number(it.quantity || 1), 0);
               const calcDelFee = Number(orderDetail?.deliveryFee ?? 30);
-              const calcTax = Number((calcSubtotal * 0.05).toFixed(2));
-              const calcTotal = Number(orderDetail?.totalAmount || orderDetail?.totalPrice || (calcSubtotal + calcDelFee + calcTax)).toFixed(2);
+              const calcTax = Number(orderDetail?.taxes && Number(orderDetail.taxes) < (calcSubtotal * 0.2) ? orderDetail.taxes : (calcSubtotal * 0.05));
+              const rawTotal = calcSubtotal + calcDelFee + calcTax;
+              const calcTotal = rawTotal.toFixed(2);
+              const pmStr = String(orderDetail?.paymentMethod || orderDetail?.paymentType || route?.params?.paymentMethod || '').toUpperCase();
+              const psStr = String(orderDetail?.paymentStatus || route?.params?.paymentStatus || '').toUpperCase();
+              const isOnlinePayment = pmStr.includes('ONLINE') || pmStr.includes('RAZORPAY') || pmStr.includes('UPI') || pmStr.includes('CARD') || psStr === 'PAID' || orderDetail?.isPaid === true;
+
               return (
                 <View style={styles.billBreakdownSection}>
                   <View style={styles.billRowItem}>
                     <Text style={styles.billRowLabel}>Payment Method</Text>
-                    <View style={styles.codBadgePill}>
-                      <Text style={styles.codBadgeText}>
-                        🟡 {(orderDetail?.paymentMethod || orderDetail?.paymentType || 'CASH ON DELIVERY').toUpperCase()}
+                    <View style={[styles.codBadgePill, isOnlinePayment && { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                      <Text style={[styles.codBadgeText, isOnlinePayment && { color: '#059669' }]}>
+                        {isOnlinePayment ? '🟢 PAID ONLINE (RAZORPAY)' : '🟡 CASH ON DELIVERY (COD)'}
                       </Text>
                     </View>
                   </View>

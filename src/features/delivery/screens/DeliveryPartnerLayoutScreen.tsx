@@ -461,7 +461,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                   const restaurantName = item.restaurant?.name || item.restaurantName || 'Burger Boss';
                   const storePhone = item.restaurant?.phone || item.restaurantPhone || '+919123456789';
                   const restaurantAddress = item.restaurant?.address || item.restaurantAddress || '101 Burger Boulevard';
-                  const customerName = item.customer?.name || item.user?.name || item.userName || 'gopal gohel';
+                  const customerName = item.customer?.name || item.user?.name || item.userName || 'Customer';
                   const customerPhone = item.customer?.phone || item.user?.phone || item.userPhone || '+919876543210';
                   let customerAddress = 'Address not provided';
                   const da = item.deliveryAddress || item.address || item.shippingAddress;

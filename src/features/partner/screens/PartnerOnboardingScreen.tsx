@@ -23,9 +23,10 @@ import { applyPartnerApi } from '../../auth/services/authApi';
 import { BASE_URL, getAuthToken } from '../../../services/apiClient';
 import { useAuth } from '../../../context/AuthContext';
 import { validatePhone, validatePincode, validateEmail, validateName, validateBankAccount, validateIFSC } from '../../../utils/validation';
+import { GuestPartnerState } from '../components/GuestPartnerState';
 
 export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const initialMode = route?.params?.initialMode || 'restaurant';
   const [partnerType, setPartnerType] = useState<'restaurant' | 'delivery'>(initialMode);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -61,6 +62,53 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
   const [loading, setLoading] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
+
+  const markTouched = (field: string) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
+
+  // 🔹 Step 1 Field Validations (Live Inline Red Text Errors)
+  const step1Errors = React.useMemo(() => {
+    const errs: { [key: string]: string } = {};
+
+    if (partnerType === 'restaurant') {
+      if (!restaurantName.trim()) errs.restaurantName = 'Restaurant Name is required.';
+      if (!cuisineTags.trim()) errs.cuisineTags = 'Cuisine Tags are required.';
+      if (!phone.trim()) errs.phone = 'Phone Number is required.';
+      else if (phone.replace(/\D/g, '').length !== 10) errs.phone = 'Enter valid 10-digit phone number.';
+      if (!addressLine.trim()) errs.addressLine = 'Full Street Address is required.';
+      if (!city.trim()) errs.city = 'City is required.';
+      if (!pincode.trim()) errs.pincode = 'Pincode is required.';
+      else if (pincode.replace(/\D/g, '').length !== 6) errs.pincode = 'Enter valid 6-digit pincode.';
+    } else {
+      if (!name.trim()) errs.name = 'Full Name is required.';
+      if (!email.trim()) errs.email = 'Email Address is required.';
+      else if (!email.includes('@')) errs.email = 'Enter a valid email address.';
+      if (!phone.trim()) errs.phone = 'Phone Number is required.';
+      else if (phone.replace(/\D/g, '').length !== 10) errs.phone = 'Enter valid 10-digit phone number.';
+      if (!vehicleNumber.trim()) errs.vehicleNumber = 'Vehicle Registration Number is required.';
+      if (!city.trim()) errs.city = 'City is required.';
+      if (!pincode.trim()) errs.pincode = 'Pincode is required.';
+      else if (pincode.replace(/\D/g, '').length !== 6) errs.pincode = 'Enter valid 6-digit pincode.';
+    }
+
+    return errs;
+  }, [partnerType, restaurantName, cuisineTags, phone, addressLine, city, pincode, name, email, vehicleNumber, password]);
+
+  // 🔹 Check if Step 1 is 100% complete & valid to enable Continue button
+  const isStep1FormValid = React.useMemo(() => {
+    return Object.keys(step1Errors).length === 0;
+  }, [step1Errors]);
+
+  // 🔹 Auto-fill logged in user's profile details
+  React.useEffect(() => {
+    if (currentUser) {
+      if (currentUser.name && !name) setName(currentUser.name);
+      if (currentUser.email && !email) setEmail(currentUser.email);
+      if (currentUser.phone && !phone) setPhone(currentUser.phone);
+    }
+  }, [currentUser]);
 
   const requestAndroidPermissions = async (type: 'gallery' | 'camera') => {
     if (Platform.OS !== 'android') return true;
@@ -180,80 +228,95 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
     if (fieldKey === 'aadhaar') setAadhaarCardUrl(url);
   };
 
-  // Step 1 Validation & Transition
+  // Step 1 Transition (No Alert Popups, Inline Field Errors & Disabled Button Guard)
   const handleNextStep1 = () => {
     setFormError(null);
 
-    // 1. Phone validation (exactly 10 digits)
-    const phoneRes = validatePhone(phone);
-    if (!phoneRes.isValid) {
-      setFormError(phoneRes.message);
+    // 0. Auth Check
+    if (!currentUser) {
+      setFormError('Login required to submit partner application.');
       return;
     }
 
-    // 2. City validation
-    if (!city.trim()) {
-      setFormError('City is required.');
-      return;
-    }
-
-    // 3. Pincode validation (exactly 6 digits) if filled or required
-    if (pincode.trim()) {
-      const pinRes = validatePincode(pincode);
-      if (!pinRes.isValid) {
-        setFormError(pinRes.message);
-        return;
-      }
-    }
-
+    // Touch all fields to show any inline errors if clicked
+    const allTouched: { [key: string]: boolean } = {};
     if (partnerType === 'restaurant') {
-      const restNameRes = validateName(restaurantName, 'Restaurant Name');
-      if (!restNameRes.isValid) {
-        setFormError(restNameRes.message);
-        return;
-      }
+      ['restaurantName', 'cuisineTags', 'phone', 'addressLine', 'city', 'pincode'].forEach(f => allTouched[f] = true);
     } else {
-      const nameRes = validateName(name, 'Full Name');
-      if (!nameRes.isValid) {
-        setFormError(nameRes.message);
-        return;
-      }
-
-      const emailRes = validateEmail(email);
-      if (!emailRes.isValid) {
-        setFormError(emailRes.message);
-        return;
-      }
-
-      if (!password || password.length < 6) {
-        setFormError('Password must be at least 6 characters long.');
-        return;
-      }
+      ['name', 'email', 'phone', 'vehicleNumber', 'city', 'pincode'].forEach(f => allTouched[f] = true);
     }
+    setTouchedFields(allTouched);
+
+    if (!isStep1FormValid) {
+      setFormError('Please fill in all required fields correctly above.');
+      return;
+    }
+
     setCurrentStep(2);
   };
 
-  // Step 2 Transition
+  // Step 2 Transition & Document Validation
   const handleNextStep2 = () => {
     setFormError(null);
+
+    if (partnerType === 'delivery') {
+      if (!drivingLicenseUrl) {
+        const err = 'Driving License Document is required. Please upload your document.';
+        setFormError(err);
+        Alert.alert('Document Missing ⚠️', err);
+        return;
+      }
+      if (!aadhaarCardUrl) {
+        const err = 'Aadhaar Card / Govt ID Document is required. Please upload your document.';
+        setFormError(err);
+        Alert.alert('Document Missing ⚠️', err);
+        return;
+      }
+    }
+
     setCurrentStep(3);
   };
 
-  // Final Form Submission
+  // Final Form Submission & Re-Validation
   const handleSubmitApplication = async () => {
     setFormError(null);
 
-    // Strict Final Re-validation
-    const phoneRes = validatePhone(phone);
-    if (!phoneRes.isValid) {
-      setFormError(phoneRes.message);
+    if (!currentUser) {
+      Alert.alert(
+        'Login Required 🔒',
+        'Please log in or create an account first so your partner application is linked to your profile.',
+        [
+          {
+            text: 'Log In / Sign Up',
+            onPress: () => navigation.navigate('Login'),
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      setFormError('Login required to submit partner application.');
       return;
     }
 
-    const pinRes = validatePincode(pincode.trim() || '390026');
-    if (!pinRes.isValid) {
-      setFormError(pinRes.message);
-      return;
+    // Final Document Check for Restaurant
+    if (partnerType === 'restaurant') {
+      if (!coverPhotoUrl) {
+        const err = 'Restaurant Cover Photo is required. Please upload your cover photo.';
+        setFormError(err);
+        Alert.alert('Document Missing ⚠️', err);
+        return;
+      }
+      if (!fssaiLicenseUrl) {
+        const err = 'FSSAI Food License Document is required. Please upload your document.';
+        setFormError(err);
+        Alert.alert('Document Missing ⚠️', err);
+        return;
+      }
+      if (!gstCertificateUrl) {
+        const err = 'GST / Business Registration Certificate is required. Please upload your document.';
+        setFormError(err);
+        Alert.alert('Document Missing ⚠️', err);
+        return;
+      }
     }
 
     if (partnerType === 'delivery') {
@@ -274,8 +337,8 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
       }
     }
 
-    const trimmedName = name.trim() || user?.name || 'Restaurant Owner';
-    const trimmedEmail = email.trim() || user?.email || 'owner@cravingza.com';
+    const trimmedName = name.trim() || currentUser?.name || '';
+    const trimmedEmail = email.trim() || currentUser?.email || '';
     const trimmedPhone = phone.replace(/[^0-9]/g, '');
     const trimmedCity = city.trim() || 'Vadodara';
     const trimmedPincode = pincode.replace(/[^0-9]/g, '') || '390026';
@@ -366,6 +429,16 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
       setLoading(false);
     }
   };
+
+  if (!currentUser) {
+    return (
+      <GuestPartnerState
+        initialMode={initialMode}
+        onLoginPress={() => navigation.navigate('Login')}
+        onGoBack={() => navigation.goBack()}
+      />
+    );
+  }
 
   return (
     <View style={styles.mainContainer}>
@@ -461,6 +534,25 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
               )}
             </View>
 
+            {/* Guest Warning Banner if User is Not Logged In */}
+            {!currentUser && (
+              <View style={styles.guestWarningBanner}>
+                <Text style={styles.guestWarningIcon}>🔒</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guestWarningTitle}>Login Required to Apply</Text>
+                  <Text style={styles.guestWarningSub}>
+                    Please log in so your restaurant application is linked to your profile.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.guestLoginPillBtn}
+                  onPress={() => navigation.navigate('Login')}
+                >
+                  <Text style={styles.guestLoginPillText}>Log In</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* 🌟 STEP 1: BUSINESS & LOCATION DETAILS */}
             {currentStep === 1 && (
               <View style={styles.formCard}>
@@ -473,70 +565,84 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                 {partnerType === 'restaurant' ? (
                   <>
                     <CustomInput
-                      label="Restaurant Name"
+                      label="Restaurant Name *"
                       placeholder="e.g., Punjabi Dhaba & Grill"
                       value={restaurantName}
                       onChangeText={(t) => {
                         setRestaurantName(t);
+                        markTouched('restaurantName');
                         setFormError(null);
                       }}
-                      leftIcon="🍽️"
+                      error={touchedFields.restaurantName ? step1Errors.restaurantName : undefined}
                     />
 
                     <CustomInput
-                      label="Cuisine Tags (Comma separated)"
+                      label="Cuisine Tags (Comma separated) *"
                       placeholder="e.g., Indian, Biryani, Fast Food"
                       value={cuisineTags}
-                      onChangeText={setCuisineTags}
-                      leftIcon="🏷️"
+                      onChangeText={(t) => {
+                        setCuisineTags(t);
+                        markTouched('cuisineTags');
+                        setFormError(null);
+                      }}
+                      error={touchedFields.cuisineTags ? step1Errors.cuisineTags : undefined}
                     />
 
                     <CustomInput
-                      label="Phone Number"
+                      label="Phone Number *"
                       placeholder="e.g., 9876543210"
                       value={phone}
                       onChangeText={(t) => {
                         const clean = t.replace(/[^0-9]/g, '');
                         setPhone(clean);
+                        markTouched('phone');
                         setFormError(null);
                       }}
                       keyboardType="phone-pad"
                       maxLength={10}
-                      leftIcon="📞"
+                      error={touchedFields.phone ? step1Errors.phone : undefined}
                     />
 
                     <CustomInput
-                      label="Full Street Address"
+                      label="Full Street Address *"
                       placeholder="e.g., Shop 12, Sector 62 Market"
                       value={addressLine}
-                      onChangeText={setAddressLine}
-                      leftIcon="📍"
+                      onChangeText={(t) => {
+                        setAddressLine(t);
+                        markTouched('addressLine');
+                        setFormError(null);
+                      }}
+                      error={touchedFields.addressLine ? step1Errors.addressLine : undefined}
                     />
 
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <View style={{ flex: 1 }}>
                         <CustomInput
-                          label="City"
+                          label="City *"
                           placeholder="City"
                           value={city}
                           onChangeText={(t) => {
                             setCity(t);
+                            markTouched('city');
                             setFormError(null);
                           }}
+                          error={touchedFields.city ? step1Errors.city : undefined}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
                         <CustomInput
-                          label="Pincode"
+                          label="Pincode *"
                           placeholder="6-digit Pincode"
                           value={pincode}
                           onChangeText={(t) => {
                             const clean = t.replace(/[^0-9]/g, '');
                             setPincode(clean);
+                            markTouched('pincode');
                             setFormError(null);
                           }}
                           keyboardType="numeric"
                           maxLength={6}
+                          error={touchedFields.pincode ? step1Errors.pincode : undefined}
                         />
                       </View>
                     </View>
@@ -544,38 +650,44 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                 ) : (
                   <>
                     <CustomInput
-                      label="Full Name / Rider Name"
+                      label="Full Name / Rider Name *"
                       placeholder="e.g., Alex Johnson"
                       value={name}
-                      onChangeText={setName}
-                      leftIcon="👤"
+                      onChangeText={(t) => {
+                        setName(t);
+                        markTouched('name');
+                      }}
+                      error={touchedFields.name ? step1Errors.name : undefined}
                     />
 
                     <CustomInput
-                      label="Email Address"
+                      label="Email Address *"
                       placeholder="e.g., rider@cravingza.com"
                       value={email}
-                      onChangeText={setEmail}
+                      onChangeText={(t) => {
+                        setEmail(t);
+                        markTouched('email');
+                      }}
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      leftIcon="✉️"
+                      error={touchedFields.email ? step1Errors.email : undefined}
                     />
 
                     <CustomInput
-                      label="Phone Number"
+                      label="Phone Number *"
                       placeholder="e.g., 9876543210"
                       value={phone}
                       onChangeText={(t) => {
                         const clean = t.replace(/[^0-9]/g, '');
                         setPhone(clean);
-                        setFormError(null);
+                        markTouched('phone');
                       }}
                       keyboardType="phone-pad"
                       maxLength={10}
-                      leftIcon="📞"
+                      error={touchedFields.phone ? step1Errors.phone : undefined}
                     />
 
-                    <Text style={styles.fieldLabel}>Vehicle Type</Text>
+                    <Text style={styles.fieldLabel}>Vehicle Type <Text style={{ color: '#EF4444', fontWeight: '900' }}>*</Text></Text>
                     <View style={styles.vehicleTypeRow}>
                       {[
                         { id: 'motorcycle', name: '🏍️ Motorcycle' },
@@ -603,42 +715,46 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                     </View>
 
                     <CustomInput
-                      label="Vehicle Registration Number"
+                      label="Vehicle Registration Number *"
                       placeholder="e.g., UP16 AB 1234"
                       value={vehicleNumber}
-                      onChangeText={setVehicleNumber}
+                      onChangeText={(t) => {
+                        setVehicleNumber(t);
+                        markTouched('vehicleNumber');
+                      }}
                       autoCapitalize="characters"
-                      leftIcon="🔢"
+                      error={touchedFields.vehicleNumber ? step1Errors.vehicleNumber : undefined}
                     />
 
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
                       <View style={{ flex: 1 }}>
                         <CustomInput
-                          label="City"
+                          label="City *"
                           placeholder="City"
                           value={city}
-                          onChangeText={setCity}
+                          onChangeText={(t) => {
+                            setCity(t);
+                            markTouched('city');
+                          }}
+                          error={touchedFields.city ? step1Errors.city : undefined}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
                         <CustomInput
-                          label="Pincode"
+                          label="Pincode *"
                           placeholder="Pincode"
                           value={pincode}
-                          onChangeText={setPincode}
+                          onChangeText={(t) => {
+                            const clean = t.replace(/[^0-9]/g, '').slice(0, 6);
+                            setPincode(clean);
+                            markTouched('pincode');
+                          }}
                           keyboardType="numeric"
+                          maxLength={6}
+                          error={touchedFields.pincode ? step1Errors.pincode : undefined}
                         />
                       </View>
                     </View>
-
-                    <CustomInput
-                      label="Password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChangeText={setPassword}
-                      isPassword
-                      leftIcon="🔒"
-                    />
                   </>
                 )}
 
@@ -649,12 +765,25 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                   </View>
                 )}
 
-                <CustomButton
-                  title="Continue to Documents"
+                {/* Step 1 Disabled Light Gray vs Active Primary Orange Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.continueStepBtn,
+                    !isStep1FormValid && styles.continueStepBtnDisabled,
+                  ]}
+                  disabled={!isStep1FormValid}
                   onPress={handleNextStep1}
-                  style={styles.submitBtn}
-                  showArrow={true}
-                />
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.continueStepBtnText,
+                      !isStep1FormValid && styles.continueStepBtnTextDisabled,
+                    ]}
+                  >
+                    Continue to Documents ➔
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -872,29 +1001,26 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
                 </Text>
 
                 <CustomInput
-                  label="Account Holder Name"
+                  label="Account Holder Name *"
                   placeholder="e.g., Alex Johnson"
                   value={accountHolderName}
                   onChangeText={setAccountHolderName}
-                  leftIcon="👤"
                 />
 
                 <CustomInput
-                  label="Bank Account Number"
+                  label="Bank Account Number *"
                   placeholder="e.g., 918273645012"
                   value={accountNumber}
                   onChangeText={setAccountNumber}
                   keyboardType="numeric"
-                  leftIcon="💳"
                 />
 
                 <CustomInput
-                  label="IFSC Code"
+                  label="IFSC Code *"
                   placeholder="e.g., HDFC0001234"
                   value={ifscCode}
                   onChangeText={setIfscCode}
                   autoCapitalize="characters"
-                  leftIcon="🏦"
                 />
 
                 {/* Inline Form Error Box */}
@@ -1218,6 +1344,36 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
     borderRadius: 12,
   },
+  continueStepBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.md,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  continueStepBtnDisabled: {
+    backgroundColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  continueStepBtnText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZE.md,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  continueStepBtnTextDisabled: {
+    color: '#94A3B8',
+    fontWeight: '700',
+  },
   wizardBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1238,5 +1394,40 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontWeight: '800',
     fontSize: FONT_SIZE.sm,
+  },
+  guestWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: SPACING.md,
+    borderRadius: 14,
+    marginBottom: SPACING.md,
+    gap: 10,
+  },
+  guestWarningIcon: {
+    fontSize: 22,
+  },
+  guestWarningTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#9A3412',
+  },
+  guestWarningSub: {
+    fontSize: 11,
+    color: '#C2410C',
+    marginTop: 2,
+  },
+  guestLoginPillBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  guestLoginPillText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

@@ -18,7 +18,10 @@ import { getUserOrdersApi, submitCustomerReviewApi, cancelOrderApi } from '../se
 import { addSharedReview } from '../../../services/reviewSyncStore';
 import { Modal, TextInput } from 'react-native';
 import { useCart } from '../../../context/CartContext';
+import { useAuth } from '../../../context/AuthContext';
 import { OrderCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
+import { GuestOrdersState } from '../components/GuestOrdersState';
+import { CustomerBottomNav } from '../components/CustomerBottomNav';
 
 export interface OrderItem {
   name: string;
@@ -39,7 +42,8 @@ export interface Order {
 }
 
 export const OrdersScreen = ({ navigation }: any) => {
-  const { addToCart, clearCart } = useCart();
+  const { currentUser } = useAuth();
+  const { addToCart, clearCart, replaceCartWithItems } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -65,7 +69,7 @@ export const OrdersScreen = ({ navigation }: any) => {
         restaurantId: selectedOrderForReview?.restaurantId || '6a816c0c8170d2e1641c04f1',
         rating: reviewRating,
         comment: reviewComment.trim(),
-        customerName: 'gopal gohel',
+        customerName: currentUser?.name || 'Cravingza Customer',
       };
 
       await submitCustomerReviewApi(payload).catch(() => { });
@@ -73,7 +77,7 @@ export const OrdersScreen = ({ navigation }: any) => {
       // Add to shared review store so restaurant admin updates live in real-time
       addSharedReview({
         _id: `rev_live_${Date.now()}`,
-        customerName: 'gopal gohel',
+        customerName: currentUser?.name || 'Cravingza Customer',
         rating: reviewRating,
         comment: reviewComment.trim(),
         createdAt: new Date().toISOString(),
@@ -140,10 +144,20 @@ export const OrdersScreen = ({ navigation }: any) => {
   ];
 
   useEffect(() => {
-    loadUserOrders();
-  }, []);
+    if (currentUser) {
+      loadUserOrders();
+    } else {
+      setOrders([]);
+      setLoading(false);
+    }
+  }, [currentUser]);
 
   const loadUserOrders = async () => {
+    if (!currentUser) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await getUserOrdersApi();
@@ -175,11 +189,11 @@ export const OrdersScreen = ({ navigation }: any) => {
         }));
         setOrders(formatted);
       } else {
-        setOrders(demoOrders);
+        setOrders([]);
       }
     } catch (error: any) {
       console.log('Fetch Orders Error:', error.message);
-      setOrders(demoOrders);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -271,27 +285,33 @@ export const OrdersScreen = ({ navigation }: any) => {
     const itemsSummary = item.items.map((it) => `${it.quantity}x ${it.name}`).join(', ');
 
     const handleReorderPress = () => {
-      clearCart();
-      item.items.forEach((dish, idx) => {
-        addToCart(
-          {
-            id: `reorder_${idx}_${Date.now()}`,
-            name: dish.name,
-            price: dish.price,
-          },
-          '6a71cf90ab29fa88687723b4',
-          item.restaurantName
-        );
-      });
+      const realRestId =
+        item.restaurant?._id ||
+        item.restaurant?.id ||
+        (typeof item.restaurant === 'string' ? item.restaurant : null) ||
+        item.restaurantId ||
+        '68ad1e90ab29fa88687723b4';
+
+      const reorderItems = item.items.map((dish, idx) => ({
+        menuItem: dish.menuItem || dish.id || dish._id || `reorder_${idx}_${Date.now()}`,
+        name: dish.name,
+        price: Number(dish.price || 0),
+        quantity: Number(dish.quantity || 1),
+      }));
+
+      replaceCartWithItems(reorderItems, realRestId, item.restaurantName || 'Restaurant');
+
       safeAlert(
         'Items Added to Cart! 🛒',
-        `Items from ${item.restaurantName} have been added to your cart.`,
+        `Items from ${item.restaurantName || 'Restaurant'} have been added to your cart with exact quantities & pricing.`,
         [
           {
             text: 'Proceed to Checkout',
             onPress: () =>
               navigation.navigate('Checkout', {
                 restaurantName: item.restaurantName,
+                restaurantId: realRestId,
+                cartItems: reorderItems,
               }),
           },
           { text: 'Cancel', style: 'cancel' },
@@ -395,6 +415,16 @@ export const OrdersScreen = ({ navigation }: any) => {
     </View>
   );
 
+  if (!currentUser) {
+    return (
+      <GuestOrdersState
+        onLoginPress={() => navigation.navigate('Login')}
+        onGoBack={() => navigation.goBack()}
+        navigation={navigation}
+      />
+    );
+  }
+
   return (
     <View style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
@@ -479,6 +509,8 @@ export const OrdersScreen = ({ navigation }: any) => {
             </View>
           </View>
         </Modal>
+
+        <CustomerBottomNav activeTab="Orders" navigation={navigation} />
       </SafeAreaView>
     </View>
   );
@@ -497,7 +529,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 85,
     paddingHorizontal: SPACING.md,
   },
   headerContainer: {

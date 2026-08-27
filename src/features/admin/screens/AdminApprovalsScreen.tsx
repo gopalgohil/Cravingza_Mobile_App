@@ -296,7 +296,7 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
     selectedApplication?.owner?.email ||
     selectedApplication?.email ||
     selectedApplication?.user?.email ||
-    'gopalgohel0120@gmail.com';
+    'applicant@cravingza.com';
 
   const ownerPhone =
     selectedApplication?.ownerPhone ||

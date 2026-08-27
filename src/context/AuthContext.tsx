@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState } from 'react';
 import { setAuthToken } from '../services/apiClient';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { getAuth } from '@react-native-firebase/auth';
-import { setAddressesFromLogin } from './AddressContext';
+import { setAddressesFromLogin, clearUserAddresses } from './AddressContext';
+import { clearCartOnLogout } from './CartContext';
 
 export interface UserProfileData {
   id?: string;
@@ -36,14 +37,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const unsubscribe = getAuth().onAuthStateChanged((fbUser) => {
         if (fbUser && !currentUser) {
-          console.log('[AuthContext] Auto-restored Firebase User:', fbUser.email);
-          setCurrentUser({
+          console.log('[AuthContext] Auto-restored Firebase User (Google Auth):', fbUser.email);
+          const uObj = {
             id: fbUser.uid,
             email: fbUser.email || 'customer@cravingza.com',
             name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Cravingza Customer',
             phone: fbUser.phoneNumber || '',
             role: 'customer',
-          });
+          };
+          setCurrentUser(uObj);
+          setAddressesFromLogin([], uObj.email);
         }
       });
       return () => unsubscribe();
@@ -59,8 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(userToken);
       setAuthToken(userToken);
     }
-    if (user && Array.isArray((user as any).addresses)) {
-      setAddressesFromLogin((user as any).addresses);
+    if (user) {
+      setAddressesFromLogin((user as any).addresses || [], user.email);
     }
   };
 
@@ -69,6 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
     setToken(null);
     setAuthToken(null);
+    clearUserAddresses();
+    clearCartOnLogout();
 
     // Clean Google Sign-In & Firebase Auth cached sessions
     try {

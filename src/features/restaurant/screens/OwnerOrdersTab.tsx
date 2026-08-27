@@ -238,17 +238,38 @@ export const OwnerOrdersTab: React.FC = () => {
       }
     }
 
-    const paymentType = (item.paymentMethod || item.paymentType || 'COD').toUpperCase();
-    const isCOD = paymentType.includes('COD') || paymentType.includes('CASH');
+    const paymentType = String(item.paymentMethod || item.paymentType || '').toUpperCase();
+    const paymentStatus = String(item.paymentStatus || '').toUpperCase();
+    const isCOD = !(
+      paymentType.includes('ONLINE') ||
+      paymentType.includes('RAZORPAY') ||
+      paymentType.includes('UPI') ||
+      paymentType.includes('CARD') ||
+      paymentStatus === 'PAID' ||
+      item.isPaid === true
+    );
 
     const timestamp = formatOrderDateTime(item.createdAt || item.date || item.timestamp);
 
-    const rawItems = Array.isArray(item.items) ? item.items : [];
+    const rawItemsInput = Array.isArray(item.items) ? item.items : [];
+    const itemMapOwner: Record<string, any> = {};
+    rawItemsInput.forEach((d: any) => {
+      const name = d.name || 'Dish Item';
+      const price = Number(d.price || 200);
+      const qty = Number(d.quantity || 1);
+      if (!itemMapOwner[name]) {
+        itemMapOwner[name] = { ...d, name, price, quantity: qty };
+      } else {
+        itemMapOwner[name].quantity = Math.max(itemMapOwner[name].quantity, qty);
+      }
+    });
+    const rawItems = Object.values(itemMapOwner);
 
-    const itemSubtotal = rawItems.reduce((sum: number, d: any) => sum + Number(d.price || 200) * Number(d.quantity || 1), 0);
-    const deliveryCharges = 30;
-    const taxesGst = 30;
-    const totalAmount = Number(item.totalAmount || item.totalPrice || (itemSubtotal + deliveryCharges + taxesGst));
+    const itemSubtotal = rawItems.reduce((sum: number, d: any) => sum + Number(d.price || 0) * Number(d.quantity || 1), 0);
+    const deliveryCharges = Number(item.deliveryFee ?? 30);
+    const taxesGst = Number(item.taxes && Number(item.taxes) < (itemSubtotal * 0.2) ? item.taxes : (itemSubtotal * 0.05));
+    const calculatedTotal = itemSubtotal + deliveryCharges + taxesGst;
+    const totalAmount = calculatedTotal;
 
     return (
       <View style={styles.orderCardBox}>
@@ -296,10 +317,10 @@ export const OwnerOrdersTab: React.FC = () => {
               </View>
 
               {/* Payment Badge */}
-              <View style={styles.paymentPillBadge}>
-                <View style={styles.paymentDotCircle} />
-                <Text style={styles.paymentPillBadgeText}>
-                  {isCOD ? 'CASH ON DELIVERY' : 'ONLINE ORDER'}
+              <View style={[styles.paymentPillBadge, !isCOD && { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <View style={[styles.paymentDotCircle, !isCOD && { backgroundColor: '#059669' }]} />
+                <Text style={[styles.paymentPillBadgeText, !isCOD && { color: '#059669' }]}>
+                  {isCOD ? 'CASH ON DELIVERY' : 'PAID ONLINE (RAZORPAY)'}
                 </Text>
               </View>
             </View>
@@ -314,7 +335,7 @@ export const OwnerOrdersTab: React.FC = () => {
           {/* Right Side: Total Amount */}
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.totalAmountLabel}>Total Amount</Text>
-            <Text style={styles.totalAmountVal}>₹ {totalAmount.toFixed(0)}</Text>
+            <Text style={styles.totalAmountVal}>₹ {totalAmount.toFixed(2)}</Text>
           </View>
         </View>
 
@@ -348,7 +369,7 @@ export const OwnerOrdersTab: React.FC = () => {
                 </View>
                 <Text style={styles.dishSummaryName}>{dish.name}</Text>
               </View>
-              <Text style={styles.dishSummaryPrice}>₹{Number(dish.price || 200).toFixed(0)}</Text>
+              <Text style={styles.dishSummaryPrice}>₹{Number(dish.price || 0).toFixed(2)}</Text>
             </View>
           ))}
         </View>
@@ -357,15 +378,15 @@ export const OwnerOrdersTab: React.FC = () => {
         <View style={styles.billBreakdownBox}>
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>Subtotal</Text>
-            <Text style={styles.billVal}>₹{itemSubtotal.toFixed(0)}</Text>
+            <Text style={styles.billVal}>₹{itemSubtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>Delivery Charges</Text>
-            <Text style={styles.billVal}>₹{deliveryCharges}</Text>
+            <Text style={styles.billVal}>₹{deliveryCharges.toFixed(2)}</Text>
           </View>
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>Taxes & GST (5%)</Text>
-            <Text style={styles.billVal}>₹{taxesGst}</Text>
+            <Text style={styles.billVal}>₹{taxesGst.toFixed(2)}</Text>
           </View>
         </View>
 

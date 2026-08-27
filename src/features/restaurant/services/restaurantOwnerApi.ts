@@ -209,7 +209,7 @@ export const getOwnerStoreDetailsApi = async () => {
           name: 'Burger Boss',
           cuisine: 'Gourmet Smash Burgers & Sides',
           phone: '+91 98765 43210',
-          email: 'gopalgohel249@gmail.com',
+          email: 'owner@cravingza.com',
           location: { address: '101 Burger Boulevard, Sector 18, Metro City', city: 'Metro City' },
           openingTime: '10:00 AM',
           closingTime: '11:00 PM',
@@ -234,4 +234,39 @@ export const updateOwnerStoreDetailsApi = async (payload: any) => {
       data: payload,
     };
   }
+};
+
+// 13. Fetch Merchant Offers & Coupons -> GET /api/offers/merchant
+export const getMerchantOffersApi = async () => {
+  try {
+    return await apiClient('/offers/merchant');
+  } catch (err) {
+    try {
+      return await apiClient('/offers');
+    } catch (e2) {
+      return { success: false, data: [] };
+    }
+  }
+};
+
+// 14. Create Merchant Offer / Coupon -> POST /api/offers/merchant
+export const createMerchantOfferApi = async (payload: any) => {
+  try {
+    return await apiClient('/offers/merchant', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    return await apiClient('/offers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+};
+
+// 15. Delete Merchant Offer / Coupon -> DELETE /api/offers/merchant/:id
+export const deleteMerchantOfferApi = async (id: string) => {
+  return await apiClient(`/offers/merchant/${id}`, {
+    method: 'DELETE',
+  });
 };

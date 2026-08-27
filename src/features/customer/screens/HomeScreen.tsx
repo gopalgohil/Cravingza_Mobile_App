@@ -88,13 +88,35 @@ const getRestaurantCardImage = (item: any) => {
 import { useAddress } from '../../../context/AddressContext';
 import { useCart } from '../../../context/CartContext';
 import { useAuth } from '../../../context/AuthContext';
+import { CustomerBottomNav } from '../components/CustomerBottomNav';
 
 export const HomeScreen = ({ navigation }: any) => {
   const { currentUser } = useAuth();
-  const { selectedAddress } = useAddress();
+  const { selectedAddress, fetchUserAddresses } = useAddress();
   const { cartCount, getCartList, restaurantId, restaurantName } = useCart();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeTab, setActiveTab] = useState('Home');
+
+  // 🔹 Auto-redirect Restaurant Owners to Restaurant Admin Dashboard
+  useEffect(() => {
+    if (currentUser) {
+      const role = String(currentUser.role || '').toLowerCase();
+      const email = String(currentUser.email || '').toLowerCase();
+      if (
+        role === 'restaurant_owner' ||
+        role === 'restaurant' ||
+        role === 'owner' ||
+        role === 'merchant' ||
+        email.includes('owner') ||
+        email.includes('restaurant')
+      ) {
+        console.log('Auto-redirecting Restaurant Owner to RestaurantOwnerLayout...');
+        navigation.replace('RestaurantOwnerLayout');
+        return;
+      }
+      fetchUserAddresses();
+    }
+  }, [currentUser]);
 
   // 🔹 Search & Debounce States
   const [searchQuery, setSearchQuery] = useState('');
@@ -435,18 +457,18 @@ export const HomeScreen = ({ navigation }: any) => {
       {/* Top Location Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {selectedAddress ? (
+          {currentUser && selectedAddress && selectedAddress.addressLine ? (
             <>
               <Text style={styles.deliverLabel}>Deliver to</Text>
               <TouchableOpacity style={styles.locationSelector} onPress={() => navigation.navigate('Profile')}>
                 <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
-                  📍 {selectedAddress.label} ({selectedAddress.addressLine})
+                  📍 {selectedAddress.label || 'Home'} ({selectedAddress.addressLine})
                 </Text>
                 <Text style={styles.dropdownIcon}>▼</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity style={styles.locationSelector} onPress={() => navigation.navigate('Profile')}>
+            <TouchableOpacity style={styles.locationSelector} onPress={() => currentUser ? navigation.navigate('Profile') : navigation.navigate('Login')}>
               <Text style={styles.brandTitleText}>Cravingza</Text>
             </TouchableOpacity>
           )}
@@ -458,7 +480,7 @@ export const HomeScreen = ({ navigation }: any) => {
             <TouchableOpacity
               style={styles.iconBadgeBtn}
               onPress={() => {
-                setShowNotificationModal(true);
+                navigation.navigate('Notifications');
                 setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
               }}
             >
@@ -562,31 +584,7 @@ export const HomeScreen = ({ navigation }: any) => {
       )}
 
       {/* Bottom Navigation Tab Bar */}
-      <View style={styles.bottomNav}>
-        {['Home', 'Offers', 'Orders', 'Profile'].map((tabName) => (
-          <TouchableOpacity
-            key={tabName}
-            style={styles.navItem}
-            onPress={() => {
-              setActiveTab(tabName);
-              if (tabName === 'Orders') {
-                navigation.navigate('Orders');
-              } else if (tabName === 'Offers') {
-                navigation.navigate('Offers');
-              } else if (tabName === 'Profile') {
-                navigation.navigate('Profile');
-              }
-            }}
-          >
-            <View style={styles.navIconContainer}>
-              {renderNavIcon(tabName, activeTab === tabName)}
-            </View>
-            <Text style={[styles.navLabel, activeTab === tabName && styles.navLabelActive]}>
-              {tabName}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <CustomerBottomNav activeTab="Home" navigation={navigation} />
 
       {/* Real-time Customer Notifications Modal */}
       <Modal
@@ -612,24 +610,38 @@ export const HomeScreen = ({ navigation }: any) => {
                 <Text style={styles.noNotifText}>No notifications right now.</Text>
               ) : (
                 notifications.map((n) => (
-                  <View key={n.id} style={styles.notifItemCard}>
+                  <TouchableOpacity
+                    key={n.id}
+                    style={styles.notifItemCard}
+                    onPress={() => {
+                      setShowNotificationModal(false);
+                      if (n.orderId) {
+                        navigation.navigate('TrackOrder', { orderId: n.orderId });
+                      } else {
+                        navigation.navigate('TrackOrder');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
                     <View style={styles.notifItemHeader}>
                       <Text style={styles.notifItemTitle}>{n.title}</Text>
                       <Text style={styles.notifItemTime}>{n.time}</Text>
                     </View>
                     <Text style={styles.notifItemMsg}>{n.message}</Text>
-                    {n.orderId && (
-                      <TouchableOpacity
-                        style={styles.notifTrackBtn}
-                        onPress={() => {
-                          setShowNotificationModal(false);
+                    <TouchableOpacity
+                      style={styles.notifTrackBtn}
+                      onPress={() => {
+                        setShowNotificationModal(false);
+                        if (n.orderId) {
                           navigation.navigate('TrackOrder', { orderId: n.orderId });
-                        }}
-                      >
-                        <Text style={styles.notifTrackBtnText}>Track Order Live →</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                        } else {
+                          navigation.navigate('TrackOrder');
+                        }
+                      }}
+                    >
+                      <Text style={styles.notifTrackBtnText}>Track Order Live →</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>

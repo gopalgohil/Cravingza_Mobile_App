@@ -14,7 +14,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
-import { getOffersApi, createCouponApi } from '../../customer/services/customerApi';
+import {
+  getMerchantOffersApi,
+  createMerchantOfferApi,
+  deleteMerchantOfferApi,
+} from '../services/restaurantOwnerApi';
 import { OwnerOffersIcon } from '../components/RestaurantSidebarIcons';
 
 export interface CouponItem {
@@ -32,48 +36,63 @@ export interface CouponItem {
 
 const DEFAULT_COUPONS: CouponItem[] = [
   {
-    id: 'c_1',
-    code: 'CRAVE30',
-    title: '30% OFF up to ₹150',
-    description: 'Valid on all Burger & Fast Food orders above ₹300.',
-    discountPercentage: 30,
-    maxDiscount: 150,
-    minOrderValue: 300,
-    category: 'Discount',
-    validTill: 'Expires in 5 days',
-    isAvailable: true,
-  },
-  {
-    id: 'c_2',
-    code: 'FREEDEL',
-    title: 'FREE Delivery on Orders Above ₹199',
-    description: 'Get 100% waiver on delivery charges for Italian Restaurant orders.',
-    category: 'Free Delivery',
-    validTill: 'Valid Today Only',
-    isAvailable: true,
-  },
-  {
-    id: 'c_3',
-    code: 'ITALIAN50',
-    title: 'Flat ₹50 OFF Special Promo',
-    description: 'Special Italian Restaurant discount on any gourmet pasta or pizza combo.',
-    discountPercentage: 20,
-    maxDiscount: 50,
-    minOrderValue: 249,
-    category: 'Discount',
-    validTill: 'Valid till Sunday',
-    isAvailable: true,
-  },
-  {
-    id: 'c_4',
-    code: 'WELCOME50',
-    title: 'Flat 50% OFF First Order',
-    description: 'Welcome special offer for new Cravingza foodies! Max discount ₹200.',
+    id: 'bb_c1',
+    code: 'BURGER50',
+    title: '50% OFF at Burger Boss 🍔',
+    description: 'Get 50% instant discount on all Gourmet Smash Burgers & Sides. Max discount ₹150.',
     discountPercentage: 50,
-    maxDiscount: 200,
+    maxDiscount: 150,
     minOrderValue: 199,
     category: 'Discount',
-    validTill: 'Valid for new users',
+    validTill: 'Valid Today',
+    isAvailable: true,
+  },
+  {
+    id: 'bb_c2',
+    code: 'BURGERBOSS',
+    title: 'FLAT ₹100 OFF on Burger Boss',
+    description: 'Special Burger Boss deal! Flat ₹100 discount on orders above ₹299.',
+    discountPercentage: 30,
+    maxDiscount: 100,
+    minOrderValue: 299,
+    category: 'Discount',
+    validTill: 'Active Store Deal',
+    isAvailable: true,
+  },
+  {
+    id: 'bb_c3',
+    code: 'BOSSFRIES',
+    title: 'Free Delivery + ₹50 OFF',
+    description: 'Enjoy zero delivery fee and flat ₹50 OFF on all Burger Boss orders above ₹149.',
+    discountPercentage: 20,
+    maxDiscount: 50,
+    minOrderValue: 149,
+    category: 'Free Delivery',
+    validTill: 'Valid All Week',
+    isAvailable: true,
+  },
+  {
+    id: 'bb_c4',
+    code: 'BURGER20',
+    title: '20% Instant Cashback',
+    description: 'Get 20% instant cashback up to ₹120 on all online & COD orders at Burger Boss.',
+    discountPercentage: 20,
+    maxDiscount: 120,
+    minOrderValue: 249,
+    category: 'Cashback',
+    validTill: 'Weekend Special',
+    isAvailable: true,
+  },
+  {
+    id: 'bb_c5',
+    code: 'CRAVE50',
+    title: '50% OFF Platform Promo',
+    description: 'Cravingza special deal! 50% discount on orders above ₹199.',
+    discountPercentage: 50,
+    maxDiscount: 120,
+    minOrderValue: 199,
+    category: 'Platform Deal',
+    validTill: 'Active Promo',
     isAvailable: true,
   },
 ];
@@ -81,7 +100,7 @@ const DEFAULT_COUPONS: CouponItem[] = [
 export const OwnerOffersTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [coupons, setCoupons] = useState<CouponItem[]>([]);
+  const [coupons, setCoupons] = useState<CouponItem[]>(DEFAULT_COUPONS);
 
   // Add Coupon Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -94,28 +113,32 @@ export const OwnerOffersTab: React.FC = () => {
   const fetchCoupons = async () => {
     try {
       setLoading(true);
-      const res = await getOffersApi();
+      const res = await getMerchantOffersApi();
       console.log('Owner Offers API Response:', res);
       const list = res?.data || res?.offers || (Array.isArray(res) ? res : []);
+      let liveList: CouponItem[] = [];
+
       if (Array.isArray(list) && list.length > 0) {
-        setCoupons(
-          list.map((item: any, idx: number) => ({
-            id: item._id || item.id || `c_${idx}`,
-            code: item.code || `OFFER${idx + 1}`,
-            title: item.title || `${item.discountPercentage || 20}% OFF Special`,
-            description: item.description || 'Special store discount coupon',
-            minOrderValue: item.minOrderValue || 199,
-            category: item.category || 'Discount',
-            validTill: item.validTill || 'Active Promo',
-            isAvailable: true,
-          }))
-        );
-      } else {
-        setCoupons([]);
+        liveList = list.map((item: any, idx: number) => ({
+          id: item._id || item.id || `c_${idx}`,
+          code: item.code || item.couponCode || `OFFER${idx + 1}`,
+          title: item.title || `${item.discountPercentage || 20}% OFF Special`,
+          description: item.description || 'Special restaurant promo offer',
+          minOrderValue: item.minOrderValue || item.minOrderAmount || 199,
+          category: item.category || 'Discount',
+          validTill: item.validTill || 'Active Promo',
+          isAvailable: true,
+        }));
       }
+
+      const map = new Map<string, CouponItem>();
+      DEFAULT_COUPONS.forEach((c) => map.set(c.code.toUpperCase(), c));
+      liveList.forEach((c) => map.set(c.code.toUpperCase(), { ...map.get(c.code.toUpperCase()), ...c }));
+
+      setCoupons(Array.from(map.values()));
     } catch (err: any) {
       console.log('Fetch Owner Offers Note:', err.message);
-      setCoupons([]);
+      setCoupons(DEFAULT_COUPONS);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -153,8 +176,8 @@ export const OwnerOffersTab: React.FC = () => {
         discountPercentage: 20,
       };
 
-      console.log('Posting New Coupon Live to Backend POST /api/coupons...', payload);
-      const res = await createCouponApi(payload);
+      console.log('Posting New Coupon Live to Backend POST /api/offers/merchant...', payload);
+      const res = await createMerchantOfferApi(payload);
       console.log('Create Coupon API Success:', res);
 
       const createdItem: CouponItem = {

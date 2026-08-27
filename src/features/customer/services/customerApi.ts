@@ -30,6 +30,13 @@ export interface OrderItemPayload {
 export interface CreateOrderPayload {
   restaurant: string;
   items: OrderItemPayload[];
+  totalAmount?: number;
+  totalPrice?: number;
+  subTotal?: number;
+  deliveryFee?: number;
+  taxes?: number;
+  discountAmount?: number;
+  couponCode?: string;
   deliveryAddress: {
     addressLine?: string;
     street: string;
@@ -37,6 +44,7 @@ export interface CreateOrderPayload {
     zipCode?: string;
   };
   paymentMethod?: 'COD' | 'ONLINE' | string;
+  paymentType?: string;
 }
 
 // 5. Create Order API -> POST /api/orders
@@ -80,15 +88,29 @@ export const createCouponApi = async (payload: {
 };
 
 export interface CreateRazorpayOrderPayload {
+  amount?: number;
+  totalAmount?: number;
+  deliveryFee?: number;
+  taxes?: number;
+  discountAmount?: number;
   couponCode?: string;
   restaurant?: string;
   items?: OrderItemPayload[];
 }
 
 export interface VerifyRazorpayPaymentPayload {
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
   razorpay_payment_id: string;
-  razorpay_signature: string;
+  razorpay_signature?: string;
+  totalAmount?: number;
+  deliveryFee?: number;
+  taxes?: number;
+  items?: OrderItemPayload[];
+  restaurant?: string;
+  paymentMethod?: string;
+  paymentType?: string;
+  paymentStatus?: string;
+  isPaid?: boolean;
   deliveryAddress: {
     addressLine: string;
     city?: string;

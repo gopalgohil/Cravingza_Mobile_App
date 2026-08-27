@@ -345,7 +345,7 @@ export const AdminApprovalsTab = () => {
     selectedApplication?.owner?.email ||
     selectedApplication?.email ||
     selectedApplication?.user?.email ||
-    'gopalgohel0120@gmail.com';
+    'applicant@cravingza.com';
 
   const ownerPhone =
     selectedApplication?.ownerPhone ||

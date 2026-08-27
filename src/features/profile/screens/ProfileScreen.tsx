@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getUserProfileApi, updateUserProfileApi } from '../../auth/services/authApi';
 import { getAuth } from '@react-native-firebase/auth';
@@ -21,6 +22,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useAddress } from '../../../context/AddressContext';
 import { useAuth } from '../../../context/AuthContext';
 import { ProfileSkeleton } from '../../../components/ui/SkeletonPlaceholder';
+import { CustomerBottomNav } from '../../customer/components/CustomerBottomNav';
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { selectedAddress, saveNewAddress, setSelectedAddress } = useAddress();
@@ -32,6 +34,13 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [phoneModalVisible, setPhoneModalVisible] = useState<boolean>(false);
   const [newPhoneInput, setNewPhoneInput] = useState<string>('');
   const [savingPhone, setSavingPhone] = useState<boolean>(false);
+
+  const [addressModalVisible, setAddressModalVisible] = useState<boolean>(false);
+  const [newStreetInput, setNewStreetInput] = useState<string>('');
+  const [newCityInput, setNewCityInput] = useState<string>('');
+  const [newPincodeInput, setNewPincodeInput] = useState<string>('');
+  const [newLabelInput, setNewLabelInput] = useState<string>('Home');
+  const [savingAddress, setSavingAddress] = useState<boolean>(false);
 
   const handleSavePhoneOnly = async () => {
     if (!newPhoneInput.trim()) {
@@ -57,6 +66,38 @@ export const ProfileScreen = ({ navigation }: any) => {
       Alert.alert('Error', e.message || 'Unable to update phone number');
     } finally {
       setSavingPhone(false);
+    }
+  };
+
+  const handleSaveAddressOnly = async () => {
+    if (!newStreetInput.trim()) {
+      Alert.alert('Validation Error', 'Please enter street / building address.');
+      return;
+    }
+    const cleanPin = newPincodeInput.replace(/[^0-9]/g, '');
+    if (!cleanPin || cleanPin.length !== 6) {
+      Alert.alert('Validation Error 📍', 'Pincode must be exactly 6 digits (e.g. 390023).');
+      return;
+    }
+    try {
+      setSavingAddress(true);
+      const newAddr = {
+        label: newLabelInput || 'Home',
+        addressLine: newStreetInput.trim(),
+        city: newCityInput.trim() || 'Vadodara',
+        pincode: newPincodeInput.trim() || '390023',
+        isDefault: true,
+      };
+      await saveNewAddress(newAddr);
+      setStreet(newAddr.addressLine);
+      setCity(newAddr.city);
+      setPincode(newAddr.pincode);
+      setAddressModalVisible(false);
+      Alert.alert('Delivery Address Saved 🎉', 'Your delivery address has been saved successfully!');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Unable to save delivery address');
+    } finally {
+      setSavingAddress(false);
     }
   };
 
@@ -102,9 +143,7 @@ export const ProfileScreen = ({ navigation }: any) => {
 
   const fetchUserProfile = async () => {
     try {
-      setLoading(true);
-
-      // 1. Pre-fill from active AuthContext
+      // 1. Pre-fill from active AuthContext immediately with ZERO delay
       if (currentUser) {
         if (currentUser.name) setName(currentUser.name);
         if (currentUser.email) setEmail(currentUser.email);
@@ -115,6 +154,9 @@ export const ProfileScreen = ({ navigation }: any) => {
         }
         if (currentUser.role) setRole(currentUser.role);
         if (currentUser.avatar) setAvatar(currentUser.avatar);
+        setLoading(false); // ⚡ Instant UI render
+      } else {
+        setLoading(true);
       }
 
       // 2. Fetch User Profile from Live MongoDB Backend API (GET /api/auth/profile)
@@ -254,6 +296,8 @@ const handleLogout = () => {
             <Text style={styles.guestLoginBtnText}>Login / Sign Up</Text>
           </TouchableOpacity>
         </View>
+
+        <CustomerBottomNav activeTab="Profile" navigation={navigation} />
       </SafeAreaView>
     );
   }
@@ -327,6 +371,8 @@ return (
               onChangeText={setName}
               placeholder="Enter full name"
               placeholderTextColor="#94A3B8"
+              autoComplete="name"
+              textContentType="name"
             />
           ) : (
             <Text style={styles.fieldValueReadOnly}>{name}</Text>
@@ -346,6 +392,8 @@ return (
               keyboardType="phone-pad"
               placeholder="Enter phone number (e.g. +91 98765 43210)"
               placeholderTextColor="#94A3B8"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
             />
           ) : phone ? (
             <Text style={styles.fieldValueReadOnly}>{phone}</Text>
@@ -364,106 +412,56 @@ return (
           )}
 
           {/* Delivery Address Section */}
-          {street ? (
-            <View style={{ marginTop: 14 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <Text style={styles.fieldLabel}>Saved Delivery Address</Text>
-                {!isEditMode && (
-                  <TouchableOpacity onPress={() => setIsEditMode(true)}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>Edit</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+          <View style={{ marginTop: 14 }}>
+            <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Saved Delivery Address</Text>
 
-              {isEditMode ? (
-                <View style={{ gap: 8 }}>
-                  <Text style={styles.fieldLabel}>Street / Building Address</Text>
-                  <TextInput
-                    style={styles.textInputActive}
-                    value={street}
-                    onChangeText={setStreet}
-                    placeholder="Enter street name"
-                    placeholderTextColor="#94A3B8"
-                  />
-
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>City</Text>
-                      <TextInput
-                        style={styles.textInputActive}
-                        value={city}
-                        onChangeText={setCity}
-                        placeholder="City"
-                        placeholderTextColor="#94A3B8"
-                      />
-                    </View>
-                    <View style={{ width: 120 }}>
-                      <Text style={styles.fieldLabel}>Pincode</Text>
-                      <TextInput
-                        style={styles.textInputActive}
-                        value={pincode}
-                        onChangeText={setPincode}
-                        keyboardType="numeric"
-                        placeholder="Pincode"
-                        placeholderTextColor="#94A3B8"
-                      />
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <View style={{
-                  backgroundColor: '#F8FAFC',
-                  padding: 12,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: '#E2E8F0',
-                }}>
-                  <Text style={{ fontSize: 13, color: '#334155', fontWeight: '600' }}>{street}</Text>
+            {street ? (
+              <View style={{
+                backgroundColor: '#F8FAFC',
+                padding: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ fontSize: 13, color: '#1E293B', fontWeight: '700' }}>{street}</Text>
                   {(city || pincode) ? (
-                    <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                      {city}{city && pincode ? ' - ' : ''}{pincode}
+                    <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '600' }}>
+                      {city}{city && pincode ? ' • ' : ''}Pincode: <Text style={{ color: '#EA580C', fontWeight: '800' }}>{pincode}</Text>
                     </Text>
                   ) : null}
                 </View>
-              )}
-            </View>
-          ) : isEditMode ? (
-            <View style={{ marginTop: 14, gap: 8 }}>
-              <Text style={styles.fieldLabel}>Street / Building Address</Text>
-              <TextInput
-                style={styles.textInputActive}
-                value={street}
-                onChangeText={setStreet}
-                placeholder="Enter street name"
-                placeholderTextColor="#94A3B8"
-              />
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>City</Text>
-                  <TextInput
-                    style={styles.textInputActive}
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="City"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-                <View style={{ width: 120 }}>
-                  <Text style={styles.fieldLabel}>Pincode</Text>
-                  <TextInput
-                    style={styles.textInputActive}
-                    value={pincode}
-                    onChangeText={setPincode}
-                    keyboardType="numeric"
-                    placeholder="Pincode"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
+                {/* Professional Theme SVG Pen Edit Icon Button */}
+                <TouchableOpacity
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: '#FFF7ED',
+                    borderWidth: 1,
+                    borderColor: '#FFEDD5',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => {
+                    setNewStreetInput(street);
+                    setNewCityInput(city || 'Vadodara');
+                    setNewPincodeInput(pincode || '390023');
+                    setAddressModalVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </Svg>
+                </TouchableOpacity>
               </View>
-            </View>
-          ) : (
-            <View style={{ marginTop: 14 }}>
+            ) : (
               <TouchableOpacity
                 style={{
                   backgroundColor: '#FFF7ED',
@@ -476,7 +474,12 @@ return (
                   justifyContent: 'center',
                   gap: 4,
                 }}
-                onPress={() => setIsEditMode(true)}
+                onPress={() => {
+                  setNewStreetInput('');
+                  setNewCityInput('Vadodara');
+                  setNewPincodeInput('390023');
+                  setAddressModalVisible(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 14, color: '#EA580C', fontWeight: '700' }}>
@@ -486,8 +489,8 @@ return (
                   Click here to add street, city & pincode
                 </Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
 
           {/* Save Button in Edit Mode */}
           {isEditMode && (
@@ -603,6 +606,82 @@ return (
       </ScrollView>
     )}
 
+    {/* 📍 Dedicated Delivery Address Add/Edit Modal */}
+    <Modal visible={addressModalVisible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>📍 Add Delivery Address</Text>
+          <Text style={styles.modalSub}>
+            Enter your house/flat number, street name, city, and pincode for accurate food delivery.
+          </Text>
+
+          <Text style={styles.fieldLabel}>Street / Building / Flat Address</Text>
+          <TextInput
+            style={styles.modalInput}
+            value={newStreetInput}
+            onChangeText={setNewStreetInput}
+            placeholder="e.g. A-18 Arunachal Flat, Subhanpura"
+            placeholderTextColor="#94A3B8"
+            autoComplete="street-address"
+            textContentType="fullStreetAddress"
+            autoFocus
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>City</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newCityInput}
+                onChangeText={setNewCityInput}
+                placeholder="City"
+                placeholderTextColor="#94A3B8"
+                autoComplete="address-level2"
+                textContentType="addressCity"
+              />
+            </View>
+            <View style={{ width: 120 }}>
+              <Text style={styles.fieldLabel}>Pincode</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newPincodeInput}
+                onChangeText={(val) => setNewPincodeInput(val.replace(/[^0-9]/g, '').slice(0, 6))}
+                keyboardType="numeric"
+                maxLength={6}
+                placeholder="Pincode"
+                placeholderTextColor="#94A3B8"
+                autoComplete="postal-code"
+                textContentType="postalCode"
+              />
+            </View>
+          </View>
+
+          <View style={styles.modalActionsRow}>
+            <TouchableOpacity
+              style={styles.btnCancel}
+              onPress={() => {
+                setAddressModalVisible(false);
+              }}
+            >
+              <Text style={styles.btnCancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.btnSavePhone}
+              onPress={handleSaveAddressOnly}
+              disabled={savingAddress}
+            >
+              {savingAddress ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.btnSavePhoneText}>Save Address</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
     {/* 📱 Dedicated Single Mobile Phone Number Edit Modal */}
     <Modal visible={phoneModalVisible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
@@ -648,6 +727,8 @@ return (
         </View>
       </View>
     </Modal>
+
+    <CustomerBottomNav activeTab="Profile" navigation={navigation} />
   </SafeAreaView>
 );
 };
@@ -710,8 +791,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scrollContent: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xl,
+    paddingBottom: 85,
+    paddingHorizontal: SPACING.md,
   },
   userHeroCard: {
     backgroundColor: COLORS.white,

@@ -11,7 +11,9 @@ import {
   ActivityIndicator,
   Switch,
   RefreshControl,
+  Modal,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import {
   getOwnerStoreDetailsApi,
@@ -30,15 +32,23 @@ export const OwnerSettingsTab: React.FC = () => {
   // Store Profile States
   const [restaurantName, setRestaurantName] = useState('Burger Boss');
   const [cuisine, setCuisine] = useState('Gourmet Smash Burgers & Sides');
-  const [phone, setPhone] = useState('+91 70418 05160');
-  const [email, setEmail] = useState('gopalgohel249@gmail.com');
-  const [address, setAddress] = useState('101 Burger Boulevard, Sector 18, Metro City');
-  const [city, setCity] = useState('Metro City');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [address, setAddress] = useState('101 Burger Boulevard, Sector 18');
+  const [city, setCity] = useState('Vadodara');
+  const [pincode, setPincode] = useState('390023');
   const [openingTime, setOpeningTime] = useState('10:00 AM');
   const [closingTime, setClosingTime] = useState('11:00 PM');
   const [minOrder, setMinOrder] = useState('150');
   const [prepTime, setPrepTime] = useState('20-25 mins');
   const [isStoreOpen, setIsStoreOpen] = useState(true);
+
+  // Address Modal States
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [newStreetInput, setNewStreetInput] = useState('');
+  const [newCityInput, setNewCityInput] = useState('');
+  const [newPincodeInput, setNewPincodeInput] = useState('');
+  const [savingAddress, setSavingAddress] = useState(false);
 
   const fetchStoreDetails = async () => {
     try {
@@ -53,6 +63,9 @@ export const OwnerSettingsTab: React.FC = () => {
         if (rest.email || rest.ownerEmail) setEmail(rest.email || rest.ownerEmail);
         if (rest.location?.address || rest.address) setAddress(rest.location?.address || rest.address);
         if (rest.location?.city || rest.city) setCity(rest.location?.city || rest.city);
+        if (rest.location?.zipCode || rest.location?.pincode || rest.pincode || rest.zipCode) {
+          setPincode(rest.location?.zipCode || rest.location?.pincode || rest.pincode || rest.zipCode);
+        }
         if (rest.openingTime) setOpeningTime(rest.openingTime);
         if (rest.closingTime) setClosingTime(rest.closingTime);
         if (rest.minOrder) setMinOrder(String(rest.minOrder));
@@ -89,6 +102,37 @@ export const OwnerSettingsTab: React.FC = () => {
     } catch (e) {}
   };
 
+  const handleSaveAddressOnly = async () => {
+    if (!newStreetInput.trim()) {
+      Alert.alert('Validation Error', 'Please enter street / building address.');
+      return;
+    }
+    const cleanPin = newPincodeInput.replace(/[^0-9]/g, '');
+    if (!cleanPin || cleanPin.length !== 6) {
+      Alert.alert('Validation Error 📍', 'Pincode must be exactly 6 digits (e.g. 390023).');
+      return;
+    }
+    try {
+      setSavingAddress(true);
+      const payload = {
+        address: newStreetInput.trim(),
+        city: newCityInput.trim() || 'Vadodara',
+        pincode: cleanPin,
+        zipCode: cleanPin,
+      };
+      await updateOwnerStoreDetailsApi(payload);
+      setAddress(payload.address);
+      setCity(payload.city);
+      setPincode(cleanPin);
+      setAddressModalVisible(false);
+      Alert.alert('Location Updated 🎉', 'Restaurant address and pincode have been updated successfully!');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Unable to save restaurant address');
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     if (!restaurantName.trim()) {
       Alert.alert('Validation Error', 'Restaurant name cannot be empty.');
@@ -104,6 +148,8 @@ export const OwnerSettingsTab: React.FC = () => {
         email: email.trim(),
         address: address.trim(),
         city: city.trim(),
+        pincode: pincode.trim(),
+        zipCode: pincode.trim(),
         openingTime: openingTime.trim(),
         closingTime: closingTime.trim(),
         minOrder: minOrder.trim(),
@@ -189,15 +235,33 @@ export const OwnerSettingsTab: React.FC = () => {
         <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
       </View>
 
-      {/* Form Card 2: Address & Location */}
+      {/* Form Card 2: Address & Location Card with Dedicated Popup Modal */}
       <View style={styles.card}>
-        <Text style={styles.cardSectionTitle}>Location & Address</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifySpace: 'between', justifyContent: 'space-between' }}>
+          <Text style={styles.cardSectionTitle}>📍 Location & Address</Text>
+          <TouchableOpacity
+            style={styles.editAddrBtn}
+            onPress={() => {
+              setNewStreetInput(address);
+              setNewCityInput(city);
+              setNewPincodeInput(pincode);
+              setAddressModalVisible(true);
+            }}
+          >
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+              <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </Svg>
+            <Text style={styles.editAddrBtnText}>Edit Address</Text>
+          </TouchableOpacity>
+        </View>
 
-        <Text style={styles.inputLabel}>Full Restaurant Street Address</Text>
-        <TextInput style={[styles.input, { height: 55 }]} value={address} onChangeText={setAddress} multiline />
-
-        <Text style={styles.inputLabel}>City / Region</Text>
-        <TextInput style={styles.input} value={city} onChangeText={setCity} />
+        <View style={styles.savedAddressDisplayBox}>
+          <Text style={styles.savedAddrStreet}>{address}</Text>
+          <Text style={styles.savedAddrCityPin}>
+            {city} {city && pincode ? ' • ' : ''}Pincode: <Text style={{ fontWeight: '800', color: '#EA580C' }}>{pincode}</Text>
+          </Text>
+        </View>
       </View>
 
       {/* Form Card 3: Operating Hours & Logistics */}
@@ -235,6 +299,75 @@ export const OwnerSettingsTab: React.FC = () => {
           <Text style={styles.saveBtnText}>💾 Save Live Store Settings</Text>
         )}
       </TouchableOpacity>
+
+      {/* 📍 Dedicated Restaurant Address Edit Modal Popup */}
+      <Modal visible={addressModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>📍 Edit Restaurant Address</Text>
+            <Text style={styles.modalSub}>
+              Enter street address, city, and 6-digit pincode for customer orders & rider pickup.
+            </Text>
+
+            <Text style={styles.modalInputLabel}>Street / Building / Area Address</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 60 }]}
+              value={newStreetInput}
+              onChangeText={setNewStreetInput}
+              placeholder="e.g. 101 Burger Boulevard, Sector 18"
+              placeholderTextColor="#94A3B8"
+              multiline
+              autoFocus
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalInputLabel}>City / Region</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newCityInput}
+                  onChangeText={setNewCityInput}
+                  placeholder="e.g. Vadodara"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+              <View style={{ width: 120 }}>
+                <Text style={styles.modalInputLabel}>Pincode</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newPincodeInput}
+                  onChangeText={(val) => setNewPincodeInput(val.replace(/[^0-9]/g, '').slice(0, 6))}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  placeholder="390023"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.btnCancel}
+                onPress={() => setAddressModalVisible(false)}
+              >
+                <Text style={styles.btnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSaveAddress}
+                onPress={handleSaveAddressOnly}
+                disabled={savingAddress}
+              >
+                {savingAddress ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.btnSaveAddressText}>Save Location</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -371,5 +504,110 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.xs + 2,
     fontWeight: '900',
     color: COLORS.white,
+  },
+  editAddrBtn: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  editAddrBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#EA580C',
+  },
+  savedAddressDisplayBox: {
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 6,
+  },
+  savedAddrStreet: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  savedAddrCityPin: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 34,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  modalInputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+  },
+  btnCancel: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  btnCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  btnSaveAddress: {
+    flex: 2,
+    backgroundColor: '#EA580C',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  btnSaveAddressText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

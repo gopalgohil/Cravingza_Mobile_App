@@ -60,7 +60,7 @@ export const LoginScreen = ({ navigation }: any) => {
         throw new Error(res?.message || 'Login failed. Invalid server response.');
       }
 
-      const userRole = userData?.role;
+      const userRole = String(userData?.role || '').toLowerCase();
       const lowerEmail = trimmedEmail.toLowerCase();
       setAuthUser(userData || { email: trimmedEmail, name: trimmedEmail.split('@')[0] }, authToken);
 
@@ -68,9 +68,12 @@ export const LoginScreen = ({ navigation }: any) => {
         navigation.replace('AdminLayout');
       } else if (
         userRole === 'restaurant_owner' ||
+        userRole === 'restaurant' ||
         userRole === 'owner' ||
+        userRole === 'merchant' ||
         lowerEmail.includes('owner') ||
-        lowerEmail.includes('gopalgohel')
+        lowerEmail.includes('restaurant') ||
+        lowerEmail.includes('burger')
       ) {
         navigation.replace('RestaurantOwnerLayout');
       } else if (
@@ -88,33 +91,34 @@ export const LoginScreen = ({ navigation }: any) => {
     } catch (error: any) {
       console.log('Login Error:', error.message);
 
-      // 🔹 Smart Dev/Demo Fallback Login for Rahul / Delivery Partner / Admin / Owner accounts
+      // 🔹 Smart Dev/Demo Fallback Login for Rider / Admin / Owner accounts
       const lowerEmail = trimmedEmail.toLowerCase();
+      const dynamicName = trimmedEmail.split('@')[0];
+      const formattedName = dynamicName.charAt(0).toUpperCase() + dynamicName.slice(1);
+
       if (lowerEmail.includes('rahul') || lowerEmail.includes('delivery') || lowerEmail.includes('rider')) {
         const dummyRider = {
-          name: 'Rahul Kumar',
+          name: formattedName || 'Delivery Partner',
           email: trimmedEmail,
           phone: '+919876543210',
           role: 'delivery_partner',
         };
         setAuthUser(dummyRider, 'token_rahul_dev');
-        Alert.alert('Welcome Rahul! 🚴', 'Logged in to Delivery Hero Portal');
+        Alert.alert('Welcome Partner! 🚴', 'Logged in to Delivery Hero Portal');
         navigation.replace('DeliveryPartnerLayout');
         return;
       }
 
-      if (lowerEmail.includes('owner') || lowerEmail.includes('restaurant') || lowerEmail.includes('gopalgohel')) {
-        const isBurgerBoss = lowerEmail.includes('249') || lowerEmail.includes('burger') || true;
+      if (lowerEmail.includes('owner') || lowerEmail.includes('restaurant')) {
         const dummyOwner = {
-          name: 'Gopal Gohel (Burger Boss Admin)',
+          name: `${formattedName} (Restaurant Owner)`,
           email: trimmedEmail,
-          phone: '+917041805160',
+          phone: '+919876543210',
           role: 'restaurant_owner',
-          restaurantName: 'Burger Boss',
-          restaurantId: '6a71cf8dab29fa8868772237',
+          restaurantName: `${formattedName}'s Kitchen`,
         };
         setAuthUser(dummyOwner, 'token_owner_dev');
-        Alert.alert('Welcome Gopal! 🏪', 'Logged in as Burger Boss Admin');
+        Alert.alert(`Welcome ${formattedName}! 🏪`, 'Logged in as Restaurant Owner');
         navigation.replace('RestaurantOwnerLayout');
         return;
       }

@@ -16,6 +16,8 @@ import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getOffersApi } from '../services/customerApi';
 import { OfferCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
 import { useAuth } from '../../../context/AuthContext';
+import { CustomerBottomNav } from '../components/CustomerBottomNav';
+import { copyToClipboard } from '../../../services/clipboardStore';
 
 export interface OfferCategory {
   id: string;
@@ -54,12 +56,89 @@ export interface OfferItem {
 
 const CATEGORIES: OfferCategory[] = [
   { id: 'all', label: 'All Offers', icon: '✨' },
+  { id: 'burger_boss', label: 'Burger Boss Specials 🍔', icon: '🍔' },
   { id: 'flat', label: 'Flat Discounts', icon: '%' },
   { id: 'payment', label: 'UPI & Bank Deals', icon: '💳' },
   { id: 'delivery', label: 'Free Delivery', icon: '🚚' },
 ];
 
 const DEFAULT_OFFERS: OfferItem[] = [
+  {
+    id: 'bb_1',
+    code: 'BURGER50',
+    title: '50% OFF at Burger Boss 🍔',
+    description: 'Get 50% instant discount on all Gourmet Smash Burgers, Sides & Shakes at Burger Boss.',
+    discountType: 'percentage',
+    discountValue: 50,
+    minOrderAmount: 199,
+    maxDiscountAmount: 150,
+    badgeText: '50% OFF BURGER BOSS',
+    category: 'burger_boss',
+    validTill: 'Valid Today',
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&auto=format&fit=crop&q=80',
+    restaurant: {
+      _id: '6a816c0c8170d2e1641c04f1',
+      id: '6a816c0c8170d2e1641c04f1',
+      name: 'Burger Boss',
+    },
+  },
+  {
+    id: 'bb_2',
+    code: 'BURGERBOSS',
+    title: 'FLAT ₹100 OFF on Burger Boss',
+    description: 'Special Burger Boss deal! Flat ₹100 discount on your favorite smash burgers on orders above ₹299.',
+    discountType: 'fixed',
+    discountValue: 100,
+    minOrderAmount: 299,
+    maxDiscountAmount: 100,
+    badgeText: 'FLAT ₹100 BURGER BOSS',
+    category: 'burger_boss',
+    validTill: 'Exclusive Store Deal',
+    image: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400&auto=format&fit=crop&q=80',
+    restaurant: {
+      _id: '6a816c0c8170d2e1641c04f1',
+      id: '6a816c0c8170d2e1641c04f1',
+      name: 'Burger Boss',
+    },
+  },
+  {
+    id: 'bb_3',
+    code: 'BOSSFRIES',
+    title: 'Free Delivery + ₹50 OFF at Burger Boss',
+    description: 'Enjoy free delivery and flat ₹50 OFF on all Burger Boss orders above ₹149.',
+    discountType: 'fixed',
+    discountValue: 50,
+    minOrderAmount: 149,
+    maxDiscountAmount: 50,
+    badgeText: 'FREE DEL + ₹50 OFF',
+    category: 'burger_boss',
+    validTill: 'Valid All Week',
+    image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&auto=format&fit=crop&q=80',
+    restaurant: {
+      _id: '6a816c0c8170d2e1641c04f1',
+      id: '6a816c0c8170d2e1641c04f1',
+      name: 'Burger Boss',
+    },
+  },
+  {
+    id: 'bb_4',
+    code: 'BURGER20',
+    title: '20% Instant Cashback at Burger Boss',
+    description: 'Get 20% instant cashback up to ₹120 when ordering online or COD from Burger Boss.',
+    discountType: 'percentage',
+    discountValue: 20,
+    minOrderAmount: 249,
+    maxDiscountAmount: 120,
+    badgeText: 'BURGER BOSS CASHBACK',
+    category: 'burger_boss',
+    validTill: 'Weekend Special',
+    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&auto=format&fit=crop&q=80',
+    restaurant: {
+      _id: '6a816c0c8170d2e1641c04f1',
+      id: '6a816c0c8170d2e1641c04f1',
+      name: 'Burger Boss',
+    },
+  },
   {
     id: '1',
     code: 'CRAVE50',
@@ -88,34 +167,6 @@ const DEFAULT_OFFERS: OfferItem[] = [
     validTill: 'Valid for new users',
     image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&auto=format&fit=crop&q=80',
   },
-  {
-    id: '3',
-    code: 'FREEDEL50',
-    title: 'Free Delivery + ₹50 OFF',
-    description: 'Enjoy zero delivery fee and flat ₹50 OFF on all orders above ₹149.',
-    discountType: 'fixed',
-    discountValue: 50,
-    minOrderAmount: 149,
-    maxDiscountAmount: 50,
-    badgeText: 'FREE DELIVERY',
-    category: 'delivery',
-    validTill: 'Valid Today Only',
-    image: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?w=400&auto=format&fit=crop&q=80',
-  },
-  {
-    id: '4',
-    code: 'RAZORPAY20',
-    title: '20% Instant Cashback',
-    description: 'Get 20% instant discount up to ₹100 when you pay online via Razorpay or UPI.',
-    discountType: 'percentage',
-    discountValue: 20,
-    minOrderAmount: 249,
-    maxDiscountAmount: 100,
-    badgeText: 'ONLINE SPECIAL',
-    category: 'payment',
-    validTill: 'Valid till Sunday',
-    image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=400&auto=format&fit=crop&q=80',
-  },
 ];
 
 export const OffersScreen = ({ navigation }: any) => {
@@ -137,12 +188,58 @@ export const OffersScreen = ({ navigation }: any) => {
       const res = await getOffersApi();
       console.log('Offers API Response:', res);
 
-      const apiData = res?.data || res?.offers || (Array.isArray(res) ? res : null);
+      const apiData = res?.data || res?.offers || res?.coupons || (Array.isArray(res) ? res : null);
+      let formattedLiveOffers: OfferItem[] = [];
+
       if (Array.isArray(apiData) && apiData.length > 0) {
-        setOffers(apiData);
+        formattedLiveOffers = apiData.map((item: any, idx: number) => ({
+          _id: item._id || item.id || `offer_${idx}`,
+          id: item.id || item._id || `offer_${idx}`,
+          code: item.code || item.couponCode || `OFFER${idx + 1}`,
+          title: item.title || item.name || `${item.discountPercentage || item.discountValue || 30}% OFF Special Deal`,
+          description: item.description || item.details || `Get instant savings with promo code ${item.code || item.couponCode}.`,
+          discountType: item.discountType || (item.discountPercentage ? 'percentage' : 'fixed'),
+          discountValue: item.discountValue || item.discountPercentage || item.discount || 30,
+          discountPercentage: item.discountPercentage || item.discountValue || 30,
+          minOrderAmount: item.minOrderValue || item.minOrderAmount || item.minOrder || 0,
+          minOrderValue: item.minOrderValue || item.minOrderAmount || item.minOrder || 0,
+          maxDiscountAmount: item.maxDiscountAmount || item.maxDiscount || item.maxDiscountValue || 100,
+          maxDiscount: item.maxDiscountAmount || item.maxDiscount || 100,
+          badgeText: item.badgeText || (item.discountPercentage ? `${item.discountPercentage}% OFF` : item.discountValue ? `FLAT ₹${item.discountValue} OFF` : 'EXCLUSIVE DEAL'),
+          category: item.category || 'flat',
+          validTill: item.validTill || item.validUntil || item.expiryDate || 'Expires soon',
+          image: item.image || item.imageUrl || DEFAULT_OFFERS[idx % DEFAULT_OFFERS.length].image,
+          restaurant: item.restaurant,
+          isUsed: item.isUsed || false,
+        }));
       }
+
+      // 🌟 Combine Live MongoDB Atlas offers with Active Platform & Burger Boss Deals
+      const combinedMap = new Map<string, OfferItem>();
+
+      // 1. Add Active Platform & Burger Boss Deals first
+      DEFAULT_OFFERS.forEach((defOff) => {
+        if (defOff.code) {
+          combinedMap.set(defOff.code.trim().toUpperCase(), defOff);
+        }
+      });
+
+      // 2. Override/Merge Live MongoDB Atlas Merchant Offers from API
+      formattedLiveOffers.forEach((off) => {
+        if (off.code) {
+          combinedMap.set(off.code.trim().toUpperCase(), {
+            ...combinedMap.get(off.code.trim().toUpperCase()),
+            ...off,
+          });
+        }
+      });
+
+      const mergedOffers = Array.from(combinedMap.values());
+      console.log(`Successfully loaded ${mergedOffers.length} offers into OffersScreen!`);
+      setOffers(mergedOffers);
     } catch (error: any) {
       console.log('Fetch Offers API Error:', error?.message || error);
+      setOffers(DEFAULT_OFFERS);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -150,6 +247,7 @@ export const OffersScreen = ({ navigation }: any) => {
   };
 
   const handleCopyCode = (code: string) => {
+    copyToClipboard(code);
     setCopiedCode(code);
     Alert.alert(
       'Coupon Code Copied! 🎉',
@@ -172,20 +270,34 @@ export const OffersScreen = ({ navigation }: any) => {
 
   // Dynamic filtering matching backend categories
   const filteredOffers = useMemo(() => {
-    if (selectedCategory === 'all') return offers;
+    if (!selectedCategory || selectedCategory === 'all') {
+      return offers;
+    }
 
     return offers.filter((item) => {
       const cat = (item.category || '').toLowerCase().trim();
       const code = (item.code || '').toLowerCase().trim();
       const title = (item.title || '').toLowerCase().trim();
       const badge = (item.badgeText || '').toLowerCase().trim();
+      const restName = (item.restaurant?.name || '').toLowerCase().trim();
+
+      if (selectedCategory === 'burger_boss') {
+        return (
+          cat === 'burger_boss' ||
+          cat === 'burgerboss' ||
+          restName.includes('burger boss') ||
+          code.includes('burger') ||
+          code.includes('boss') ||
+          title.includes('burger boss') ||
+          badge.includes('burger boss')
+        );
+      }
 
       if (selectedCategory === 'flat') {
         return (
           cat === 'flat' ||
           cat === 'discount' ||
           cat === 'flat discounts' ||
-          cat === 'festive' ||
           item.discountType === 'percentage' ||
           item.discountType === 'fixed' ||
           title.includes('flat') ||
@@ -203,7 +315,6 @@ export const OffersScreen = ({ navigation }: any) => {
           badge.includes('bank') ||
           title.includes('cashback') ||
           code.includes('razor') ||
-          code.includes('hdfc') ||
           code.includes('upi')
         );
       }
@@ -215,7 +326,8 @@ export const OffersScreen = ({ navigation }: any) => {
           cat === 'freedelivery' ||
           badge.includes('delivery') ||
           title.includes('delivery') ||
-          code.includes('del')
+          code.includes('del') ||
+          code.includes('fries')
         );
       }
 
@@ -440,6 +552,8 @@ export const OffersScreen = ({ navigation }: any) => {
           />
         )}
       </ScrollView>
+
+      <CustomerBottomNav activeTab="Offers" navigation={navigation} />
     </SafeAreaView>
   );
 };
@@ -479,7 +593,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xl * 2,
+    paddingBottom: 85,
   },
   heroPromoBanner: {
     backgroundColor: '#C2410C',

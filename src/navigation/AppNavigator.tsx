@@ -11,6 +11,7 @@ import { RestaurantDetailScreen } from '../features/customer/screens/RestaurantD
 import { OrdersScreen } from '../features/customer/screens/OrdersScreen';
 import { ProfileScreen } from '../features/profile/screens/ProfileScreen';
 import { OffersScreen } from '../features/customer/screens/OffersScreen';
+import { NotificationsScreen } from '../features/customer/screens/NotificationsScreen';
 import { TrackOrderScreen } from '../features/orders/screens/TrackOrderScreen';
 import { CheckoutScreen } from '../features/orders/screens/CheckoutScreen';
 import { PartnerOnboardingScreen } from '../features/partner/screens/PartnerOnboardingScreen';
@@ -33,6 +34,7 @@ export type RootStackParamList = {
   Orders: undefined;
   Profile: undefined;
   Offers: undefined;
+  Notifications: undefined;
   TrackOrder: { orderId?: string; orderNumber?: string };
   Checkout: { restaurantId?: string; restaurantName?: string; cartItems?: any[] };
   PartnerOnboarding: { initialMode?: 'restaurant' | 'delivery' };
@@ -73,6 +75,7 @@ export const AppNavigator = () => {
               <Stack.Screen name="Orders" component={OrdersScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="Offers" component={OffersScreen} />
+              <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
               <Stack.Screen name="Checkout" component={CheckoutScreen} />
               <Stack.Screen name="PartnerOnboarding" component={PartnerOnboardingScreen} />

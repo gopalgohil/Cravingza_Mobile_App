@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { getAdminDashboardApi } from '../services/adminApi';
+import { MetricCard, SectionHeader } from '../../../components/ui';
 
 export const AdminDashboardScreen = ({ navigation }: any) => {
   const { user, logout: authLogout } = useAuth();
@@ -111,47 +112,40 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
           ) : (
             <>
               {/* Metrics Grid Cards */}
-              <Text style={styles.sectionHeaderTitle}>📊 Live Platform Analytics</Text>
+              <SectionHeader title="📊 Live Platform Analytics" />
               <View style={styles.metricsGrid}>
-                {/* Metric Card 1: Total Revenue */}
-                <View style={[styles.metricCard, { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }]}>
-                  <Text style={styles.metricIcon}>💰</Text>
-                  <Text style={styles.metricValue}>
-                    {dashboardData?.totalRevenue || '₹45,890'}
-                  </Text>
-                  <Text style={styles.metricLabel}>Total Revenue</Text>
-                </View>
-
-                {/* Metric Card 2: Total Orders */}
-                <View style={[styles.metricCard, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}>
-                  <Text style={styles.metricIcon}>📦</Text>
-                  <Text style={styles.metricValue}>
-                    {dashboardData?.totalOrders || 142}
-                  </Text>
-                  <Text style={styles.metricLabel}>Total Orders</Text>
-                </View>
-
-                {/* Metric Card 3: Active Users */}
-                <View style={[styles.metricCard, { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' }]}>
-                  <Text style={styles.metricIcon}>👥</Text>
-                  <Text style={styles.metricValue}>
-                    {dashboardData?.activeUsers || 86}
-                  </Text>
-                  <Text style={styles.metricLabel}>Active Users</Text>
-                </View>
-
-                {/* Metric Card 4: Conversion Rate */}
-                <View style={[styles.metricCard, { backgroundColor: '#FAF5FF', borderColor: '#F3E8FF' }]}>
-                  <Text style={styles.metricIcon}>📈</Text>
-                  <Text style={styles.metricValue}>
-                    {dashboardData?.convRate || '4.8%'}
-                  </Text>
-                  <Text style={styles.metricLabel}>Conversion Rate</Text>
-                </View>
+                <MetricCard
+                  icon="💰"
+                  value={dashboardData?.totalRevenue || '₹45,890'}
+                  label="Total Revenue"
+                  backgroundColor="#FFF7ED"
+                  borderColor="#FFEDD5"
+                />
+                <MetricCard
+                  icon="📦"
+                  value={dashboardData?.totalOrders || 142}
+                  label="Total Orders"
+                  backgroundColor="#EFF6FF"
+                  borderColor="#DBEAFE"
+                />
+                <MetricCard
+                  icon="👥"
+                  value={dashboardData?.activeUsers || 86}
+                  label="Active Users"
+                  backgroundColor="#F0FDF4"
+                  borderColor="#DCFCE7"
+                />
+                <MetricCard
+                  icon="📈"
+                  value={dashboardData?.convRate || '4.8%'}
+                  label="Conversion Rate"
+                  backgroundColor="#FAF5FF"
+                  borderColor="#F3E8FF"
+                />
               </View>
 
               {/* Quick Action Navigation Modules */}
-              <Text style={styles.sectionHeaderTitle}>⚡ Super Admin Action Center</Text>
+              <SectionHeader title="⚡ Super Admin Action Center" />
 
               {/* Action 1: Vendor & Rider Approvals */}
               <TouchableOpacity
