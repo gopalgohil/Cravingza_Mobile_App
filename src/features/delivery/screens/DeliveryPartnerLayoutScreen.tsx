@@ -107,8 +107,46 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend or Local Sync
   const fetchDeliveries = useCallback(async () => {
     try {
-      const res = await apiClient('/orders');
-      let orderList = res?.orders || res?.data || (Array.isArray(res) ? res : []);
+      let orderList: any[] = [];
+
+      try {
+        const [nearbyRes, activeRes, allRes] = await Promise.allSettled([
+          apiClient('/delivery/nearby-orders'),
+          apiClient('/delivery/active'),
+          apiClient('/orders'),
+        ]);
+
+        const nearby = nearbyRes.status === 'fulfilled' && nearbyRes.value
+          ? (nearbyRes.value?.data || nearbyRes.value?.orders || (Array.isArray(nearbyRes.value) ? nearbyRes.value : []))
+          : [];
+        const active = activeRes.status === 'fulfilled' && activeRes.value
+          ? (activeRes.value?.data || activeRes.value?.delivery || activeRes.value?.order ? [activeRes.value?.data || activeRes.value?.delivery || activeRes.value?.order] : [])
+          : [];
+        const all = allRes.status === 'fulfilled' && allRes.value
+          ? (allRes.value?.data || allRes.value?.orders || (Array.isArray(allRes.value) ? allRes.value : []))
+          : [];
+
+        const orderMap = new Map<string, any>();
+        nearby.forEach((o: any) => { if (o && (o._id || o.id)) orderMap.set(String(o._id || o.id), o); });
+        active.forEach((o: any) => { if (o && (o._id || o.id)) orderMap.set(String(o._id || o.id), o); });
+        all.forEach((o: any) => {
+          if (o && (o._id || o.id)) {
+            const existing = orderMap.get(String(o._id || o.id)) || {};
+            orderMap.set(String(o._id || o.id), { ...existing, ...o });
+          }
+        });
+
+        getSharedOrders().forEach((o: any) => {
+          if (o && (o._id || o.id)) {
+            const existing = orderMap.get(String(o._id || o.id)) || {};
+            orderMap.set(String(o._id || o.id), { ...existing, ...o });
+          }
+        });
+
+        orderList = Array.from(orderMap.values());
+      } catch (errApi) {
+        orderList = getSharedOrders();
+      }
 
       if (!Array.isArray(orderList) || orderList.length === 0) {
         orderList = getSharedOrders();
