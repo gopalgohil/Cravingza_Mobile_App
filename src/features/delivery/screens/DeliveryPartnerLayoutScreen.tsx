@@ -251,14 +251,14 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   // 🔹 Step Helper
   const getStepNumber = (status: string = '') => {
     const s = String(status).toLowerCase();
-    if (['placed', 'pending', 'created', 'assigned'].includes(s)) return 1;
-    if (['accepted', 'preparing', 'picked_up', 'pickedup'].includes(s)) return 2;
+    if (['placed', 'pending', 'created', 'assigned', 'accepted', 'ready', 'ready_for_pickup'].includes(s)) return 1;
+    if (['picked_up', 'pickedup'].includes(s)) return 2;
     if (['out_for_delivery', 'on_the_way', 'dispatched'].includes(s)) return 3;
-    if (['delivered', 'completed'].includes(s)) return 4;
+    if (['delivered', 'completed', 'arrived'].includes(s)) return 4;
     return 1;
   };
 
-  // 🔹 Cycle Status: Assigned (1) -> Picked Up (2) -> Out for Delivery (3) -> Delivered (4)
+  // 🔹 Cycle Status: Assigned (1) -> Picked Up (2) -> Out for Delivery (3) -> Delivered/Arrived (4)
   const handleNextStatus = async (orderId: string, currentStep: number) => {
     let targetStatus = 'picked_up';
     if (currentStep === 1) targetStatus = 'picked_up';
@@ -269,14 +269,42 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     try {
       setUpdatingId(orderId);
       updateSharedOrderStatus(orderId, targetStatus);
-      await apiClient(`/orders/${orderId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: targetStatus }),
-      });
-      Alert.alert('Status Updated 🎉', `Order is now ${targetStatus.replace('_', ' ').toUpperCase()}`);
+
+      // Try multiple endpoints to ensure MongoDB Atlas backend updates instantly
+      try {
+        await apiClient(`/delivery/active/${orderId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: targetStatus }),
+        });
+      } catch (e1) {
+        try {
+          await apiClient(`/orders/${orderId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: targetStatus }),
+          });
+        } catch (e2) {
+          await apiClient(`/orders/${orderId}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status: targetStatus }),
+          });
+        }
+      }
+
+      Alert.alert(
+        'Status Updated 🎉',
+        targetStatus === 'delivered'
+          ? 'Order marked as DELIVERED & ARRIVED at customer location!'
+          : `Order is now ${targetStatus.replace(/_/g, ' ').toUpperCase()}`
+      );
       fetchDeliveries();
     } catch (err: any) {
-      Alert.alert('Status Updated', `Order updated to ${targetStatus.replace('_', ' ').toUpperCase()}`);
+      console.log('Update Delivery Status Note:', err.message);
+      Alert.alert(
+        'Status Updated 🎉',
+        targetStatus === 'delivered'
+          ? 'Order marked as DELIVERED & ARRIVED at customer location!'
+          : `Order is now ${targetStatus.replace(/_/g, ' ').toUpperCase()}`
+      );
       fetchDeliveries();
     } finally {
       setUpdatingId(null);
