@@ -15,6 +15,7 @@ import { CustomInput } from '../../../components/ui/CustomInput';
 import { CustomButton } from '../../../components/ui/CustomButton';
 import { SocialButton } from '../../../components/ui/SocialButton';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
+import { validateEmail } from '../../../utils/validation';
 import { loginApi, googleLoginApi } from '../services/authApi';
 import { getAuth, GoogleAuthProvider, signInWithCredential } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -30,15 +31,15 @@ export const LoginScreen = ({ navigation }: any) => {
 
   const handleLogin = async () => {
     setLoginError(null);
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      setLoginError('Please enter both Email and Password.');
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      setLoginError(emailCheck.message || 'Please enter a valid email address.');
       return;
     }
+    const trimmedEmail = emailCheck.normalizedEmail || email.trim();
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      setLoginError('Please enter a valid email address.');
+    if (!password) {
+      setLoginError('Please enter both Email and Password.');
       return;
     }
 

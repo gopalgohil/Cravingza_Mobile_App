@@ -15,6 +15,7 @@ import { CustomInput } from '../../../components/ui/CustomInput';
 import { CustomButton } from '../../../components/ui/CustomButton';
 import { SocialButton } from '../../../components/ui/SocialButton';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
+import { validateEmail } from '../../../utils/validation';
 import { signupApi, googleLoginApi } from '../services/authApi';
 import { getAuth, GoogleAuthProvider, signInWithCredential } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -28,6 +29,12 @@ export const SignupScreen = ({ navigation }: any) => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [role, setRole] = useState<'customer' | 'restaurant' | 'delivery'>('customer');
   const [loading, setLoading] = useState(false);
+
+  const handlePhoneChange = (text: string) => {
+    // Only allow numeric digits and limit strictly to max 10 digits
+    const cleaned = text.replace(/\D/g, '').slice(0, 10);
+    setPhone(cleaned);
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -72,11 +79,35 @@ export const SignupScreen = ({ navigation }: any) => {
 
   const handleSignup = async () => {
     const trimmedName = fullName.trim();
-    const trimmedEmail = email.trim().toLowerCase();
     const trimmedPhone = phone ? phone.trim().replace(/\D/g, '') : '';
 
-    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      Alert.alert('Invalid Email', emailCheck.message || 'Please enter a valid email address.');
+      return;
+    }
+    const trimmedEmail = emailCheck.normalizedEmail || email.trim().toLowerCase();
+
+    if (!trimmedName || !password || !confirmPassword) {
       Alert.alert('Validation Error', 'Please fill in all required fields including Confirm Password.');
+      return;
+    }
+
+    if (!trimmedPhone) {
+      Alert.alert('Phone Number Required', 'Please enter your 10-digit mobile number.');
+      return;
+    }
+
+    if (trimmedPhone.length !== 10) {
+      Alert.alert('Invalid Phone Number', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(trimmedPhone)) {
+      Alert.alert(
+        'Invalid Phone Number',
+        'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.'
+      );
       return;
     }
 
@@ -137,7 +168,7 @@ export const SignupScreen = ({ navigation }: any) => {
         'Account Created 🎉',
         res.message || 'OTP Sent to your Email for Verification!'
       );
-      navigation.replace('VerifyOtp', { email, name: fullName, phone });
+      navigation.replace('VerifyOtp', { email, name: fullName, phone: trimmedPhone });
     } catch (error: any) {
       console.log('Cravingza Backend Connection Error:', error.message);
       Alert.alert(
@@ -195,10 +226,11 @@ export const SignupScreen = ({ navigation }: any) => {
             <View style={styles.compactInputWrapper}>
               <CustomInput
                 label="Phone Number"
-                placeholder="9876543210"
+                placeholder="10-digit mobile number"
                 value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
+                onChangeText={handlePhoneChange}
+                keyboardType="number-pad"
+                maxLength={10}
                 leftIcon="📞"
               />
             </View>

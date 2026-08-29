@@ -83,8 +83,8 @@ export const PartnerOnboardingScreen = ({ route, navigation }: any) => {
       else if (pincode.replace(/\D/g, '').length !== 6) errs.pincode = 'Enter valid 6-digit pincode.';
     } else {
       if (!name.trim()) errs.name = 'Full Name is required.';
-      if (!email.trim()) errs.email = 'Email Address is required.';
-      else if (!email.includes('@')) errs.email = 'Enter a valid email address.';
+      const emailCheck = validateEmail(email);
+      if (!emailCheck.isValid) errs.email = emailCheck.message || 'Enter a valid email address.';
       if (!phone.trim()) errs.phone = 'Phone Number is required.';
       else if (phone.replace(/\D/g, '').length !== 10) errs.phone = 'Enter valid 10-digit phone number.';
       if (!vehicleNumber.trim()) errs.vehicleNumber = 'Vehicle Registration Number is required.';

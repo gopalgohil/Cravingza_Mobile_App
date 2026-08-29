@@ -60,7 +60,7 @@ export const AppNavigator = () => {
         <CartProvider>
           <NavigationContainer>
             <Stack.Navigator
-              initialRouteName="Home"
+              initialRouteName="Login"
               screenOptions={{
                 headerShown: false,
               }}

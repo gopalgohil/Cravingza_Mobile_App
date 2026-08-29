@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CustomInput } from '../../../components/ui/CustomInput';
 import { CustomButton } from '../../../components/ui/CustomButton';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
+import { validateEmail } from '../../../utils/validation';
 import { forgotPasswordApi } from '../services/authApi';
 
 export const ForgotPasswordScreen = ({ navigation }: any) => {
@@ -23,17 +24,12 @@ export const ForgotPasswordScreen = ({ navigation }: any) => {
 
   const handleSendOtp = async () => {
     setEmailError(null);
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setEmailError('Please enter your registered email address.');
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      setEmailError(emailCheck.message || 'Please enter a valid registered email address.');
       return;
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      setEmailError('Please enter a valid email address.');
-      return;
-    }
+    const trimmedEmail = emailCheck.normalizedEmail || email.trim();
 
     setLoading(true);
     try {
