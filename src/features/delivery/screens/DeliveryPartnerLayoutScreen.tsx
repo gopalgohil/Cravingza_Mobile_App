@@ -338,8 +338,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   // 🔹 Calculate Live Dashboard Metrics dynamically from MongoDB Atlas orders
   const completedOrders = orders.filter((o) => o.status === 'delivered' || o.status === 'DELIVERED');
   const todayEarnings = completedOrders.reduce((sum, o) => {
-    const earningVal = o.earning ? Number(o.earning) : Number(o.totalAmount || o.totalPrice || 0) * 0.15;
-    return sum + (isNaN(earningVal) ? 65 : earningVal);
+    const earningVal = o.earnings ? Number(o.earnings) : (o.earning ? Number(o.earning) : (o.deliveryFee ? Number(o.deliveryFee) : Number(o.totalAmount || o.totalPrice || 0) * 0.15));
+    return sum + (isNaN(earningVal) ? 30 : earningVal);
   }, 0);
 
   const getHeaderTitle = () => {
