@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Switch,
+  TextInput,
   Linking,
   Platform,
   Modal,
