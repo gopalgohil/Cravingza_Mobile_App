@@ -90,6 +90,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   });
   const [bankDetails, setBankDetails] = useState<any>(null);
   const [earningsFilter, setEarningsFilter] = useState<'all' | 'today' | 'week'>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Fetch Live Super Admin Delivery Fee Settings for Rider Earnings
   useEffect(() => {
