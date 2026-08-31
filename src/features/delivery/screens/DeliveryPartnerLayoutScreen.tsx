@@ -239,17 +239,62 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     }
   }, []);
 
-  // 🔹 Real-Time WebSockets (Socket.io) Instant Push Listener for Delivery Hero
+  // 🔹 Real-Time WebSockets (Socket.io) Instant Push Listener & Live Bell Notification Badge
   useEffect(() => {
     fetchDeliveries();
 
     const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
       console.log('⚡ [DeliveryPartner] Real-Time Socket.io Order Event:', orderData);
+      
+      // 1. Instantly refetch live deliveries via API
       fetchDeliveries();
+
+      // 2. Trigger live notification with Red Badge Circle on Bell Icon if order is ready for pickup
+      if (orderData) {
+        const idStr = String(orderData._id || orderData.id || '');
+        const st = String(orderData.status || '').toLowerCase();
+        const restName = orderData.restaurant?.name || orderData.restaurantName || 'Restaurant Partner';
+        const ordNum = orderData.orderNumber || (idStr ? `#CRV-${idStr.slice(-4).toUpperCase()}` : '#CRV-ORDER');
+
+        if (['ready_for_pickup', 'ready', 'placed', 'preparing', 'accepted'].includes(st)) {
+          const notifTitle = `🔔 New Order Available! ${ordNum}`;
+          const notifMsg = `Food is ready at ${restName}! Tap to accept & earn payout.`;
+
+          // Top WhatsApp-style push banner
+          setNotificationBanner({
+            visible: true,
+            title: notifTitle,
+            message: notifMsg,
+            time: 'Just now',
+          });
+
+          // Add to unread notifications array -> displays Red Circle Badge "1" on Bell Icon
+          const notifId = `notif_socket_${Date.now()}_${idStr}`;
+          setNotifications((prev) => {
+            if (prev.some((n) => n.orderId === idStr && n.status === st)) return prev;
+            return [
+              {
+                id: notifId,
+                title: notifTitle,
+                message: notifMsg,
+                time: 'Just now',
+                read: false,
+                orderId: idStr,
+                status: st,
+              },
+              ...prev,
+            ];
+          });
+
+          setTimeout(() => {
+            setNotificationBanner((prev) => ({ ...prev, visible: false }));
+          }, 6000);
+        }
+      }
     });
 
     const unsubscribe = subscribeOrderSync(() => {
-      setOrders([...getSharedOrders()]);
+      fetchDeliveries();
     });
 
     return () => {
