@@ -16,6 +16,7 @@ import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getOwnerOrdersApi, updateOrderStatusApi } from '../services/restaurantOwnerApi';
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
 import { getSharedOrders, updateSharedOrderStatus, subscribeOrderSync } from '../../../services/orderSyncStore';
+import { subscribeToOrderUpdates } from '../../../services/socketService';
 
 type FilterType =
   | 'all'
@@ -73,12 +74,19 @@ export const OwnerOrdersTab: React.FC = () => {
     setLoading(false);
     fetchOrders();
 
-    const unsubscribe = subscribeOrderSync(() => {
-      setOrders([...getSharedOrders()]);
-      setLoading(false);
+    const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
+      console.log('⚡ [OwnerOrdersTab] Real-Time Socket.io Order Event:', orderData);
+      fetchOrders();
     });
 
-    return () => unsubscribe();
+    const unsubscribe = subscribeOrderSync(() => {
+      fetchOrders();
+    });
+
+    return () => {
+      unsubscribeSocket();
+      unsubscribe();
+    };
   }, []);
 
   const handleRefresh = () => {
