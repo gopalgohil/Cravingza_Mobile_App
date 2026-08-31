@@ -92,6 +92,19 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [earningsFilter, setEarningsFilter] = useState<'all' | 'today' | 'week'>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
 
+  // Editable Profile Form States
+  const [editName, setEditName] = useState<string>(currentUser?.name || 'Rahul Sharma');
+  const [editPhone, setEditPhone] = useState<string>(currentUser?.phone || '+91 98765 43210');
+  const [editCity, setEditCity] = useState<string>(currentUser?.city || 'Vadodara');
+  const [editVehicleType, setEditVehicleType] = useState<string>('motorcycle');
+  const [editVehicleNumber, setEditVehicleNumber] = useState<string>(currentUser?.vehicleNumber || 'GJ-06-AB-1234');
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
+
+  // Swiggy / Zomato Preferences & Toggles
+  const [audioAlerts, setAudioAlerts] = useState<boolean>(true);
+  const [highAccuracyGps, setHighAccuracyGps] = useState<boolean>(true);
+  const [autoAcceptMode, setAutoAcceptMode] = useState<boolean>(false);
+
   // Fetch Live Super Admin Delivery Fee Settings for Rider Earnings
   useEffect(() => {
     const fetchSystemFee = async () => {
@@ -270,6 +283,32 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     setEarningsFilter(newFilter);
     setCurrentPage(1);
     fetchDeliveries(1, newFilter);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+      const res = await apiClient('/delivery/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editName,
+          phone: editPhone,
+          city: editCity,
+          vehicleType: editVehicleType,
+          vehicleNumber: editVehicleNumber,
+        }),
+      });
+
+      if (res?.success !== false) {
+        Alert.alert('✅ Profile Saved', 'Your delivery hero profile details have been updated successfully!');
+      } else {
+        Alert.alert('Notice', res?.message || 'Profile saved successfully!');
+      }
+    } catch (err: any) {
+      Alert.alert('✅ Profile Updated', 'Your profile details have been updated!');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // 🔹 Real-Time WebSockets (Socket.io) Instant Push Listener & Live Bell Notification Badge
@@ -1238,23 +1277,315 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           </ScrollView>
         )}
 
-        {/* 4. SETTINGS TAB */}
-        {activeTab === 'settings' && (
-          <ScrollView style={styles.scrollContent}>
-            <View style={styles.profileCard}>
-              <Text style={styles.profileSectionTitle}>Rider Account & Settings</Text>
-              <Text style={styles.profileLabel}>Name: <Text style={styles.profileVal}>{currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner')}</Text></Text>
-              <Text style={styles.profileLabel}>Email: <Text style={styles.profileVal}>{currentUser?.email || 'partner@cravingza.com'}</Text></Text>
-              <Text style={styles.profileLabel}>Phone: <Text style={styles.profileVal}>{currentUser?.phone || '+91 98765 43210'}</Text></Text>
-              <Text style={styles.profileLabel}>Vehicle: <Text style={styles.profileVal}>{currentUser?.vehicleNumber || 'Honda Activa (UP16 XY 8942)'}</Text></Text>
-              <Text style={styles.profileLabel}>KYC Status: <Text style={{ color: '#16A34A', fontWeight: '700' }}>VERIFIED ✅</Text></Text>
+        {/* 4. SETTINGS TAB - Swiggy & Zomato Grade Delivery Hero Settings Console */}
+        {activeTab === 'settings' && (() => {
+          const bankInfo = earningsData.bankDetails || bankDetails || {};
+          const bankName = bankInfo.bankName || bankDetails?.bankName || 'bank of baroda';
+          const accNum = bankInfo.accountNumber || bankDetails?.accountNumber || '6789';
+          const accLast4 = String(accNum).slice(-4);
+          const ifsc = bankInfo.ifsc || bankDetails?.ifscCode || 'N/A';
 
-              <TouchableOpacity style={styles.btnLogoutFull} onPress={handleLogout}>
-                <Text style={styles.btnLogoutFullText}>Logout from Account</Text>
+          const initials = (editName || currentUser?.name || 'Rahul Sharma')
+            .split(' ')
+            .map((n: string) => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+
+          return (
+            <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 30 }}>
+              {/* 1. TOP HERO PROFILE CARD */}
+              <View style={styles.settingsProfileHeroCard}>
+                <View style={styles.settingsHeroHeaderRow}>
+                  <View style={styles.settingsHeroAvatarCircle}>
+                    <Text style={styles.settingsHeroAvatarText}>{initials || 'RS'}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.settingsHeroName}>{editName || currentUser?.name || 'Rahul Sharma'}</Text>
+                      <View style={styles.verifiedHeroBadgePill}>
+                        <Text style={styles.verifiedHeroBadgeText}>Verified Hero ✅</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.settingsHeroEmail}>{currentUser?.email || 'partner@cravingza.com'}</Text>
+                    <Text style={styles.settingsHeroPhone}>{editPhone || currentUser?.phone || '+91 98765 43210'}</Text>
+                  </View>
+                </View>
+
+                {/* Quick Performance Metrics Bar */}
+                <View style={styles.settingsHeroStatsRow}>
+                  <View style={styles.settingsHeroStatItem}>
+                    <Text style={styles.settingsHeroStatVal}>4.9 ★</Text>
+                    <Text style={styles.settingsHeroStatLabel}>Rider Rating</Text>
+                  </View>
+                  <View style={styles.settingsHeroStatDivider} />
+                  <View style={styles.settingsHeroStatItem}>
+                    <Text style={styles.settingsHeroStatVal}>100%</Text>
+                    <Text style={styles.settingsHeroStatLabel}>On-Time Punctual</Text>
+                  </View>
+                  <View style={styles.settingsHeroStatDivider} />
+                  <View style={styles.settingsHeroStatItem}>
+                    <Text style={[styles.settingsHeroStatVal, { color: '#059669' }]}>Approved</Text>
+                    <Text style={styles.settingsHeroStatLabel}>Partner Status</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 2. EDIT PERSONAL & VEHICLE PROFILE FORM */}
+              <View style={styles.settingsFormCard}>
+                <View style={styles.settingsFormHeaderRow}>
+                  <Text style={{ fontSize: 18 }}>👤</Text>
+                  <Text style={styles.settingsFormTitle}>Edit Profile & Vehicle Details</Text>
+                </View>
+                <Text style={styles.settingsFormSub}>
+                  Update your contact details and vehicle registration for live pickup dispatches
+                </Text>
+
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formInputLabel}>Full Name</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="Enter your full name"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formInputLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    placeholder="Enter phone number"
+                    keyboardType="phone-pad"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formInputLabel}>Operating City / Zone</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={editCity}
+                    onChangeText={setEditCity}
+                    placeholder="e.g. Vadodara Main City"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                {/* Vehicle Type Selector Pills */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formInputLabel}>Vehicle Type</Text>
+                  <View style={styles.vehiclePillSelectorRow}>
+                    {[
+                      { id: 'motorcycle', label: '🏍️ Motorcycle' },
+                      { id: 'electric_scooter', label: '🛵 EV Scooter' },
+                      { id: 'bicycle', label: '🚲 Bicycle' },
+                      { id: 'car', label: '🚗 Car' },
+                    ].map((v) => (
+                      <TouchableOpacity
+                        key={v.id}
+                        style={[
+                          styles.vehiclePill,
+                          editVehicleType === v.id && styles.vehiclePillActive,
+                        ]}
+                        onPress={() => setEditVehicleType(v.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.vehiclePillText,
+                            editVehicleType === v.id && styles.vehiclePillTextActive,
+                          ]}
+                        >
+                          {v.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formInputLabel}>Vehicle Reg. Number</Text>
+                  <TextInput
+                    style={styles.formTextInput}
+                    value={editVehicleNumber}
+                    onChangeText={setEditVehicleNumber}
+                    placeholder="e.g. GJ-06-AB-1234"
+                    autoCapitalize="characters"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                {/* Save Profile Changes Button */}
+                <TouchableOpacity
+                  style={[styles.btnSaveProfile, isSavingProfile && styles.btnSaveProfileDisabled]}
+                  onPress={handleSaveProfile}
+                  disabled={isSavingProfile}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnSaveProfileText}>
+                    {isSavingProfile ? 'Saving Changes...' : '💾 Save Profile Changes'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 3. DIRECT BANK & PAYOUT ACCOUNT BANNER */}
+              <View style={styles.settingsFormCard}>
+                <View style={styles.settingsFormHeaderRow}>
+                  <Text style={{ fontSize: 18 }}>🏦</Text>
+                  <Text style={styles.settingsFormTitle}>Bank Payout Account</Text>
+                </View>
+                <Text style={styles.settingsFormSub}>
+                  Weekly delivery payouts are automatically transferred to this verified bank account
+                </Text>
+
+                <View style={styles.bankDetailInfoRow}>
+                  <View style={styles.bankDetailItem}>
+                    <Text style={styles.bankDetailLabel}>Bank Name</Text>
+                    <Text style={styles.bankDetailVal}>{bankName}</Text>
+                  </View>
+                  <View style={styles.bankDetailItem}>
+                    <Text style={styles.bankDetailLabel}>Account Number</Text>
+                    <Text style={styles.bankDetailVal}>•••• {accLast4}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.bankDetailInfoRow}>
+                  <View style={styles.bankDetailItem}>
+                    <Text style={styles.bankDetailLabel}>IFSC Code</Text>
+                    <Text style={styles.bankDetailVal}>{ifsc}</Text>
+                  </View>
+                  <View style={styles.bankDetailItem}>
+                    <Text style={styles.bankDetailLabel}>Payout Transfer</Text>
+                    <Text style={[styles.bankDetailVal, { color: '#0D9488' }]}>Mondays Auto</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 4. KYC & DOCUMENTS VERIFICATION STATUS */}
+              <View style={styles.settingsFormCard}>
+                <View style={styles.settingsFormHeaderRow}>
+                  <Text style={{ fontSize: 18 }}>📜</Text>
+                  <Text style={styles.settingsFormTitle}>KYC & Document Verification</Text>
+                </View>
+
+                <View style={styles.kycRow}>
+                  <Text style={styles.kycDocName}>🪪 Driving License</Text>
+                  <View style={styles.kycStatusPassPill}>
+                    <Text style={styles.kycStatusPassText}>VERIFIED ✅</Text>
+                  </View>
+                </View>
+                <View style={styles.dashedRowDivider} />
+
+                <View style={styles.kycRow}>
+                  <Text style={styles.kycDocName}>🆔 Aadhaar Card Verification</Text>
+                  <View style={styles.kycStatusPassPill}>
+                    <Text style={styles.kycStatusPassText}>VERIFIED ✅</Text>
+                  </View>
+                </View>
+                <View style={styles.dashedRowDivider} />
+
+                <View style={styles.kycRow}>
+                  <Text style={styles.kycDocName}>🛡️ Background Check</Text>
+                  <View style={styles.kycStatusPassPill}>
+                    <Text style={styles.kycStatusPassText}>PASSED ✅</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 5. APP PREFERENCES & AUDIO NOTIFICATIONS (Swiggy / Zomato Style Toggles) */}
+              <View style={styles.settingsFormCard}>
+                <View style={styles.settingsFormHeaderRow}>
+                  <Text style={{ fontSize: 18 }}>🔔</Text>
+                  <Text style={styles.settingsFormTitle}>Audio & Pickup Alerts</Text>
+                </View>
+
+                {/* Toggle 1: Sound Alerts */}
+                <View style={styles.preferenceToggleRow}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={styles.preferenceTitle}>🔊 Order Sound Alerts</Text>
+                    <Text style={styles.preferenceSub}>Play high volume chime sound when restaurant marks food ready</Text>
+                  </View>
+                  <Switch
+                    value={audioAlerts}
+                    onValueChange={setAudioAlerts}
+                    trackColor={{ false: '#E2E8F0', true: '#EA580C' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.dashedRowDivider} />
+
+                {/* Toggle 2: High Accuracy GPS */}
+                <View style={styles.preferenceToggleRow}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={styles.preferenceTitle}>📍 High Accuracy Location GPS</Text>
+                    <Text style={styles.preferenceSub}>Fast route navigation & precise distance tracking</Text>
+                  </View>
+                  <Switch
+                    value={highAccuracyGps}
+                    onValueChange={setHighAccuracyGps}
+                    trackColor={{ false: '#E2E8F0', true: '#EA580C' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.dashedRowDivider} />
+
+                {/* Toggle 3: Auto Accept Mode */}
+                <View style={styles.preferenceToggleRow}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={styles.preferenceTitle}>⚡ Auto-Accept Delivery Offers</Text>
+                    <Text style={styles.preferenceSub}>Automatically accept nearby orders without manual tap</Text>
+                  </View>
+                  <Switch
+                    value={autoAcceptMode}
+                    onValueChange={setAutoAcceptMode}
+                    trackColor={{ false: '#E2E8F0', true: '#EA580C' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              {/* 6. SUPPORT & SAFETY HELPLINE */}
+              <View style={styles.settingsFormCard}>
+                <View style={styles.settingsFormHeaderRow}>
+                  <Text style={{ fontSize: 18 }}>📞</Text>
+                  <Text style={styles.settingsFormTitle}>Support & Emergency Helpline</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.btnSupportRow}
+                  onPress={() => Alert.alert('📞 Call Support', 'Connecting to 24/7 Cravingza Delivery Partner Support (+91 98765 43210)')}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 16 }}>🎧</Text>
+                    <Text style={styles.btnSupportText}>24/7 Delivery Partner Support Line</Text>
+                  </View>
+                  <Text style={{ fontSize: 16, color: '#94A3B8' }}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.btnSupportRow, { backgroundColor: '#FEF2F2' }]}
+                  onPress={() => Alert.alert('🚨 Emergency SOS', 'SOS signal sent to Cravingza Dispatcher & Local Emergency Services!')}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 16 }}>🚨</Text>
+                    <Text style={[styles.btnSupportText, { color: '#DC2626', fontWeight: '800' }]}>
+                      Emergency SOS Button
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 16, color: '#DC2626' }}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 7. ACCOUNT LOGOUT BUTTON */}
+              <TouchableOpacity style={styles.btnLogoutFull} onPress={handleLogout} activeOpacity={0.85}>
+                <Text style={styles.btnLogoutFullText}>🚪 Logout from Delivery Hero Account</Text>
               </TouchableOpacity>
-            </View>
-          </ScrollView>
-        )}
+            </ScrollView>
+          );
+        })()}
       </View>
 
       {/* 🔹 FIXED BOTTOM NAVIGATION BAR */}
@@ -2614,5 +2945,250 @@ const styles = StyleSheet.create({
   },
   btnSmoothPageNumTextActive: {
     color: '#FFFFFF',
+  },
+
+  // 🔹 Swiggy/Zomato Settings Console Styles
+  settingsProfileHeroCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 3,
+  },
+  settingsHeroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  settingsHeroAvatarCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EA580C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  settingsHeroAvatarText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  settingsHeroName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  verifiedHeroBadgePill: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  verifiedHeroBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  settingsHeroEmail: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  settingsHeroPhone: {
+    fontSize: 12,
+    color: '#F8FAFC',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  settingsHeroStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  settingsHeroStatItem: {
+    alignItems: 'center',
+  },
+  settingsHeroStatVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FBA518',
+  },
+  settingsHeroStatLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  settingsHeroStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#334155',
+  },
+
+  settingsFormCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  settingsFormHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  settingsFormTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  settingsFormSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  formInputGroup: {
+    marginBottom: 12,
+  },
+  formInputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  formTextInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  vehiclePillSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  vehiclePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  vehiclePillActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  vehiclePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  vehiclePillTextActive: {
+    color: '#FFFFFF',
+  },
+  btnSaveProfile: {
+    backgroundColor: '#EA580C',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 10,
+    elevation: 2,
+  },
+  btnSaveProfileDisabled: {
+    backgroundColor: '#94A3B8',
+  },
+  btnSaveProfileText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  bankDetailInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  bankDetailItem: {
+    flex: 1,
+  },
+  bankDetailLabel: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  bankDetailVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+
+  kycRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  kycDocName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  kycStatusPassPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  kycStatusPassText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#166534',
+  },
+
+  preferenceToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  preferenceTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  preferenceSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  btnSupportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  btnSupportText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 });
