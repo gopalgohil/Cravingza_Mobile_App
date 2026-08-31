@@ -23,6 +23,7 @@ import {
   createRazorpayOrderApi,
   verifyRazorpayPaymentApi,
   addToCartApi,
+  getPublicSettingsApi,
 } from '../../customer/services/customerApi';
 import { getAuth } from '@react-native-firebase/auth';
 import { useAuth } from '../../../context/AuthContext';
@@ -101,6 +102,8 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     }
   }, [isReorderMode]);
 
+  const [systemDeliveryFee, setSystemDeliveryFee] = useState<number | null>(null);
+
   // Sync items when cartItems param changes via navigation
   React.useEffect(() => {
     if (route?.params?.cartItems && Array.isArray(route.params.cartItems) && route.params.cartItems.length > 0) {
@@ -108,11 +111,31 @@ export const CheckoutScreen = ({ route, navigation }: any) => {
     }
   }, [route?.params?.cartItems]);
 
+  // Fetch Live Super Admin Delivery Fee Settings
+  React.useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await getPublicSettingsApi();
+        const fee = res?.data?.baseDeliveryFee !== undefined ? Number(res.data.baseDeliveryFee) : null;
+        if (fee !== null && !isNaN(fee)) {
+          setSystemDeliveryFee(fee);
+        }
+      } catch (err) {
+        console.log('Error fetching system settings for delivery fee:', err);
+      }
+    };
+    loadSettings();
+  }, []);
+
   const [loading, setLoading] = useState(false);
 
-  // Dynamic Bill Calculations (Always based on current items in cart/checkout)
+  // Dynamic Bill Calculations (Always based on current items in cart/checkout & live Super Admin delivery fee)
   const itemSubtotal = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
-  const baseDeliveryFee = route?.params?.deliveryFee !== undefined ? Number(route.params.deliveryFee) : 30;
+  const baseDeliveryFee = systemDeliveryFee !== null
+    ? systemDeliveryFee
+    : route?.params?.deliveryFee !== undefined
+    ? Number(route.params.deliveryFee)
+    : 30;
   const deliveryFee = isFreeDelivery ? 0 : baseDeliveryFee;
   const taxes = Number((itemSubtotal * 0.05).toFixed(2));
   const grandTotal = Math.max(0, Number((itemSubtotal + deliveryFee + taxes - discountAmount).toFixed(2)));

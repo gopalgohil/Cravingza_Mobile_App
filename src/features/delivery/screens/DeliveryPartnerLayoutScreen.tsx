@@ -145,13 +145,11 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
 
         orderList = Array.from(orderMap.values());
       } catch (errApi) {
-        orderList = getSharedOrders();
+        orderList = [];
       }
 
-      if (!Array.isArray(orderList) || orderList.length === 0) {
-        orderList = getSharedOrders();
-      } else {
-        setSharedOrders(orderList, false);
+      if (!Array.isArray(orderList)) {
+        orderList = [];
       }
 
       if (Array.isArray(orderList)) {

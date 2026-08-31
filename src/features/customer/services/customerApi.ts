@@ -212,6 +212,12 @@ export const cancelOrderApi = async (orderId: string) => {
   }
 };
 
+// 17. Get Public System Settings API -> GET /api/settings
+export const getPublicSettingsApi = async () => {
+  return apiClient('/settings');
+};
+
+
 
 
 

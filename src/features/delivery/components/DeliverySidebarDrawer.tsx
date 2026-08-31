@@ -67,8 +67,8 @@ export const DeliverySidebarDrawer: React.FC<DeliverySidebarDrawerProps> = ({
   isOnline,
   onToggleOnline,
 }) => {
-  const riderName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar';
-  const riderEmail = currentUser?.email || 'rahul@example.com';
+  const riderName = currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner');
+  const riderEmail = currentUser?.email || 'partner@cravingza.com';
   const riderAvatar =
     currentUser?.avatar ||
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
