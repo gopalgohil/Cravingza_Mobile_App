@@ -749,53 +749,51 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                   })
                 )}
 
-                {/* 🔹 Industry Standard Pagination Footer Controls */}
+                {/* 🔹 Smooth Clean Mobile Pagination Bar */}
                 {pagination && pagination.totalItems > 0 && (
-                  <View style={styles.paginationFooterRow}>
-                    <Text style={styles.paginationSummaryText}>
+                  <View style={styles.smoothPaginationRow}>
+                    <Text style={styles.smoothSummaryText}>
                       Showing <Text style={{ fontWeight: '700', color: '#0F172A' }}>{pagination.startIndex} - {pagination.endIndex}</Text> of <Text style={{ fontWeight: '700', color: '#0F172A' }}>{pagination.totalItems}</Text> payouts
                     </Text>
 
-                    <View style={styles.paginationButtonsRow}>
+                    <View style={styles.smoothButtonsGroup}>
                       {/* Prev Button */}
                       <TouchableOpacity
-                        style={[styles.btnPageArrow, !pagination.hasPrevPage && styles.btnPageDisabled]}
+                        style={[styles.btnSmoothArrow, !pagination.hasPrevPage && styles.btnSmoothDisabled]}
                         disabled={!pagination.hasPrevPage}
                         onPress={() => handlePageChange(pagination.currentPage - 1)}
+                        activeOpacity={0.6}
                       >
-                        <Text style={[styles.btnPageArrowText, !pagination.hasPrevPage && styles.btnPageDisabledText]}>
+                        <Text style={[styles.btnSmoothArrowText, !pagination.hasPrevPage && styles.btnSmoothDisabledText]}>
                           ‹ Prev
                         </Text>
                       </TouchableOpacity>
 
-                      {/* Page Number Buttons */}
-                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => (
-                        <TouchableOpacity
-                          key={pageNum}
-                          style={[
-                            styles.btnPageNum,
-                            pageNum === pagination.currentPage && styles.btnPageNumActive,
-                          ]}
-                          onPress={() => handlePageChange(pageNum)}
-                        >
-                          <Text
-                            style={[
-                              styles.btnPageNumText,
-                              pageNum === pagination.currentPage && styles.btnPageNumTextActive,
-                            ]}
+                      {/* Page Numbers */}
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => {
+                        const isActive = pageNum === pagination.currentPage;
+                        return (
+                          <TouchableOpacity
+                            key={pageNum}
+                            style={[styles.btnSmoothPageNum, isActive && styles.btnSmoothPageNumActive]}
+                            onPress={() => handlePageChange(pageNum)}
+                            activeOpacity={0.6}
                           >
-                            {pageNum}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                            <Text style={[styles.btnSmoothPageNumText, isActive && styles.btnSmoothPageNumTextActive]}>
+                              {pageNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
 
                       {/* Next Button */}
                       <TouchableOpacity
-                        style={[styles.btnPageArrow, !pagination.hasNextPage && styles.btnPageDisabled]}
+                        style={[styles.btnSmoothArrow, !pagination.hasNextPage && styles.btnSmoothDisabled]}
                         disabled={!pagination.hasNextPage}
                         onPress={() => handlePageChange(pagination.currentPage + 1)}
+                        activeOpacity={0.6}
                       >
-                        <Text style={[styles.btnPageArrowText, !pagination.hasNextPage && styles.btnPageDisabledText]}>
+                        <Text style={[styles.btnSmoothArrowText, !pagination.hasNextPage && styles.btnSmoothDisabledText]}>
                           Next ›
                         </Text>
                       </TouchableOpacity>
@@ -2553,49 +2551,49 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
 
-  // 🔹 Pagination Footer Controls Styles
-  paginationFooterRow: {
+  // 🔹 Ultra-Clean & Smooth Pagination Styles
+  smoothPaginationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 16,
-    marginTop: 12,
+    marginTop: 14,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     flexWrap: 'wrap',
     gap: 10,
   },
-  paginationSummaryText: {
+  smoothSummaryText: {
     fontSize: 12,
     color: '#64748B',
   },
-  paginationButtonsRow: {
+  smoothButtonsGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  btnPageArrow: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  btnSmoothArrow: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  btnPageArrowText: {
+  btnSmoothArrowText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
   },
-  btnPageDisabled: {
+  btnSmoothDisabled: {
     backgroundColor: '#F8FAFC',
     borderColor: '#F1F5F9',
-    opacity: 0.5,
+    opacity: 0.4,
   },
-  btnPageDisabledText: {
+  btnSmoothDisabledText: {
     color: '#94A3B8',
   },
-  btnPageNum: {
+  btnSmoothPageNum: {
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -2605,16 +2603,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  btnPageNumActive: {
+  btnSmoothPageNumActive: {
     backgroundColor: '#0F172A',
     borderColor: '#0F172A',
   },
-  btnPageNumText: {
+  btnSmoothPageNumText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#475569',
   },
-  btnPageNumTextActive: {
+  btnSmoothPageNumTextActive: {
     color: '#FFFFFF',
   },
 });
