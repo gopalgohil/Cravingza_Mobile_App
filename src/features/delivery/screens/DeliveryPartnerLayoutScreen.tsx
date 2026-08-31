@@ -1298,15 +1298,23 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
                     </Text>
                   </View>
 
-                  {/* Toggle Edit Button */}
+                  {/* Toggle Edit Icon Button (No Text, Clean SVG Icon) */}
                   <TouchableOpacity
-                    style={[styles.btnToggleEdit, isEditingProfile && styles.btnToggleCancel]}
+                    style={[styles.btnToggleEditIcon, isEditingProfile && styles.btnToggleCancelIcon]}
                     onPress={() => setIsEditingProfile(!isEditingProfile)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.btnToggleEditText, isEditingProfile && styles.btnToggleCancelText]}>
-                      {isEditingProfile ? '✕ Cancel' : '✏️ Edit Profile'}
-                    </Text>
+                    {isEditingProfile ? (
+                      <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <Path d="M18 6L6 18" />
+                        <Path d="M6 6l12 12" />
+                      </Svg>
+                    ) : (
+                      <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                        <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </Svg>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -3121,25 +3129,21 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
 
-  // Read-Only & Edit Toggle Styles
-  btnToggleEdit: {
+  // Read-Only & Edit Toggle Icon Styles
+  btnToggleEditIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#0F172A',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
   },
-  btnToggleEditText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  btnToggleCancel: {
+  btnToggleCancelIcon: {
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-  },
-  btnToggleCancelText: {
-    color: '#475569',
+    elevation: 0,
   },
 
   profileDisplayRow: {
