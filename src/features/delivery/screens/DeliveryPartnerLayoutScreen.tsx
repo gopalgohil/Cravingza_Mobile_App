@@ -1292,7 +1292,10 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
               <View style={styles.settingsFormCard}>
                 <View style={styles.settingsFormHeaderRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <Text style={{ fontSize: 18 }}>👤</Text>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                      <Circle cx="12" cy="7" r="4" />
+                    </Svg>
                     <Text style={styles.settingsFormTitle}>
                       {isEditingProfile ? 'Edit Profile & Vehicle Details' : 'Personal & Vehicle Profile'}
                     </Text>
@@ -1457,7 +1460,9 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
               {/* 3. DIRECT BANK & PAYOUT ACCOUNT BANNER */}
               <View style={styles.settingsFormCard}>
                 <View style={styles.settingsFormHeaderRow}>
-                  <Text style={{ fontSize: 18 }}>🏦</Text>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 3l9 7H3l9-7z" />
+                  </Svg>
                   <Text style={styles.settingsFormTitle}>Bank Payout Account</Text>
                 </View>
                 <Text style={styles.settingsFormSub}>
@@ -1490,7 +1495,10 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
               {/* 4. KYC & DOCUMENTS VERIFICATION STATUS */}
               <View style={styles.settingsFormCard}>
                 <View style={styles.settingsFormHeaderRow}>
-                  <Text style={{ fontSize: 18 }}>📜</Text>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                  </Svg>
                   <Text style={styles.settingsFormTitle}>KYC & Document Verification</Text>
                 </View>
 
