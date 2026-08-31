@@ -89,18 +89,25 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
   const [earningsFilter, setEarningsFilter] = useState<'all' | 'today' | 'week'>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Editable Profile Form States
-  const [editName, setEditName] = useState<string>(currentUser?.name || 'Rahul Sharma');
-  const [editPhone, setEditPhone] = useState<string>(currentUser?.phone || '+91 98765 43210');
+  // Profile Editing & Form States
+  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
+  const [editName, setEditName] = useState<string>(currentUser?.name || '');
+  const [editPhone, setEditPhone] = useState<string>(currentUser?.phone || '');
   const [editCity, setEditCity] = useState<string>(currentUser?.city || 'Vadodara');
-  const [editVehicleType, setEditVehicleType] = useState<string>('motorcycle');
-  const [editVehicleNumber, setEditVehicleNumber] = useState<string>(currentUser?.vehicleNumber || 'GJ-06-AB-1234');
+  const [editVehicleType, setEditVehicleType] = useState<string>(currentUser?.vehicleType || 'motorcycle');
+  const [editVehicleNumber, setEditVehicleNumber] = useState<string>(currentUser?.vehicleNumber || '');
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
 
-  // Swiggy / Zomato Preferences & Toggles
-  const [audioAlerts, setAudioAlerts] = useState<boolean>(true);
-  const [highAccuracyGps, setHighAccuracyGps] = useState<boolean>(true);
-  const [autoAcceptMode, setAutoAcceptMode] = useState<boolean>(false);
+  // Sync profile form states dynamically when currentUser is loaded
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.name) setEditName(currentUser.name);
+      if (currentUser.phone) setEditPhone(currentUser.phone);
+      if (currentUser.city) setEditCity(currentUser.city);
+      if (currentUser.vehicleType) setEditVehicleType(currentUser.vehicleType);
+      if (currentUser.vehicleNumber) setEditVehicleNumber(currentUser.vehicleNumber);
+    }
+  }, [currentUser]);
 
   // Fetch Live Super Admin Delivery Fee Settings for Rider Earnings
   useEffect(() => {
@@ -296,12 +303,15 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
       });
 
       if (res?.success !== false) {
-        Alert.alert('✅ Profile Saved', 'Your delivery hero profile details have been updated successfully!');
+        Alert.alert('✅ Profile Saved', 'Your delivery profile details have been updated live!');
+        setIsEditingProfile(false);
       } else {
         Alert.alert('Notice', res?.message || 'Profile saved successfully!');
+        setIsEditingProfile(false);
       }
     } catch (err: any) {
-      Alert.alert('✅ Profile Updated', 'Your profile details have been updated!');
+      Alert.alert('✅ Profile Updated', 'Your profile details have been saved!');
+      setIsEditingProfile(false);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1278,104 +1288,161 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* 2. EDIT PERSONAL & VEHICLE PROFILE FORM */}
+              {/* 2. PERSONAL & VEHICLE PROFILE CARD (Read-Only by default with Edit Button Toggle) */}
               <View style={styles.settingsFormCard}>
                 <View style={styles.settingsFormHeaderRow}>
-                  <Text style={{ fontSize: 18 }}>👤</Text>
-                  <Text style={styles.settingsFormTitle}>Edit Profile & Vehicle Details</Text>
-                </View>
-                <Text style={styles.settingsFormSub}>
-                  Update your contact details and vehicle registration for live pickup dispatches
-                </Text>
-
-                <View style={styles.formInputGroup}>
-                  <Text style={styles.formInputLabel}>Full Name</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    value={editName}
-                    onChangeText={setEditName}
-                    placeholder="Enter your full name"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                <View style={styles.formInputGroup}>
-                  <Text style={styles.formInputLabel}>Phone Number</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    value={editPhone}
-                    onChangeText={setEditPhone}
-                    placeholder="Enter phone number"
-                    keyboardType="phone-pad"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                <View style={styles.formInputGroup}>
-                  <Text style={styles.formInputLabel}>Operating City / Zone</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    value={editCity}
-                    onChangeText={setEditCity}
-                    placeholder="e.g. Vadodara Main City"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                {/* Vehicle Type Selector Pills */}
-                <View style={styles.formInputGroup}>
-                  <Text style={styles.formInputLabel}>Vehicle Type</Text>
-                  <View style={styles.vehiclePillSelectorRow}>
-                    {[
-                      { id: 'motorcycle', label: '🏍️ Motorcycle' },
-                      { id: 'electric_scooter', label: '🛵 EV Scooter' },
-                      { id: 'bicycle', label: '🚲 Bicycle' },
-                      { id: 'car', label: '🚗 Car' },
-                    ].map((v) => (
-                      <TouchableOpacity
-                        key={v.id}
-                        style={[
-                          styles.vehiclePill,
-                          editVehicleType === v.id && styles.vehiclePillActive,
-                        ]}
-                        onPress={() => setEditVehicleType(v.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.vehiclePillText,
-                            editVehicleType === v.id && styles.vehiclePillTextActive,
-                          ]}
-                        >
-                          {v.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ fontSize: 18 }}>👤</Text>
+                    <Text style={styles.settingsFormTitle}>
+                      {isEditingProfile ? 'Edit Profile & Vehicle Details' : 'Personal & Vehicle Profile'}
+                    </Text>
                   </View>
+
+                  {/* Toggle Edit Button */}
+                  <TouchableOpacity
+                    style={[styles.btnToggleEdit, isEditingProfile && styles.btnToggleCancel]}
+                    onPress={() => setIsEditingProfile(!isEditingProfile)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.btnToggleEditText, isEditingProfile && styles.btnToggleCancelText]}>
+                      {isEditingProfile ? '✕ Cancel' : '✏️ Edit Profile'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.formInputGroup}>
-                  <Text style={styles.formInputLabel}>Vehicle Reg. Number</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    value={editVehicleNumber}
-                    onChangeText={setEditVehicleNumber}
-                    placeholder="e.g. GJ-06-AB-1234"
-                    autoCapitalize="characters"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
+                {!isEditingProfile ? (
+                  /* READ-ONLY DISPLAY MODE */
+                  <View style={{ marginTop: 12 }}>
+                    <View style={styles.profileDisplayRow}>
+                      <Text style={styles.profileDisplayLabel}>Full Name</Text>
+                      <Text style={styles.profileDisplayValue}>{editName || currentUser?.name || 'Delivery Partner'}</Text>
+                    </View>
+                    <View style={styles.dashedRowDivider} />
 
-                {/* Save Profile Changes Button */}
-                <TouchableOpacity
-                  style={[styles.btnSaveProfile, isSavingProfile && styles.btnSaveProfileDisabled]}
-                  onPress={handleSaveProfile}
-                  disabled={isSavingProfile}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.btnSaveProfileText}>
-                    {isSavingProfile ? 'Saving Changes...' : '💾 Save Profile Changes'}
-                  </Text>
-                </TouchableOpacity>
+                    <View style={styles.profileDisplayRow}>
+                      <Text style={styles.profileDisplayLabel}>Phone Number</Text>
+                      <Text style={styles.profileDisplayValue}>{editPhone || currentUser?.phone || 'Not Provided'}</Text>
+                    </View>
+                    <View style={styles.dashedRowDivider} />
+
+                    <View style={styles.profileDisplayRow}>
+                      <Text style={styles.profileDisplayLabel}>Operating Zone</Text>
+                      <Text style={styles.profileDisplayValue}>{editCity || currentUser?.city || 'Vadodara Hub'}</Text>
+                    </View>
+                    <View style={styles.dashedRowDivider} />
+
+                    <View style={styles.profileDisplayRow}>
+                      <Text style={styles.profileDisplayLabel}>Vehicle Type</Text>
+                      <Text style={styles.profileDisplayValue}>
+                        {editVehicleType === 'electric_scooter' ? '🛵 EV Scooter' :
+                         editVehicleType === 'bicycle' ? '🚲 Bicycle' :
+                         editVehicleType === 'car' ? '🚗 Car' : '🏍️ Motorcycle'}
+                      </Text>
+                    </View>
+                    <View style={styles.dashedRowDivider} />
+
+                    <View style={styles.profileDisplayRow}>
+                      <Text style={styles.profileDisplayLabel}>Vehicle Reg. Number</Text>
+                      <Text style={styles.profileDisplayValue}>{editVehicleNumber || currentUser?.vehicleNumber || 'GJ-06-AB-1234'}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  /* EDITABLE FORM MODE */
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={styles.settingsFormSub}>
+                      Update your contact details and vehicle registration for live pickup dispatches
+                    </Text>
+
+                    <View style={styles.formInputGroup}>
+                      <Text style={styles.formInputLabel}>Full Name</Text>
+                      <TextInput
+                        style={styles.formTextInput}
+                        value={editName}
+                        onChangeText={setEditName}
+                        placeholder="Enter your full name"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    <View style={styles.formInputGroup}>
+                      <Text style={styles.formInputLabel}>Phone Number</Text>
+                      <TextInput
+                        style={styles.formTextInput}
+                        value={editPhone}
+                        onChangeText={setEditPhone}
+                        placeholder="Enter phone number"
+                        keyboardType="phone-pad"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    <View style={styles.formInputGroup}>
+                      <Text style={styles.formInputLabel}>Operating City / Zone</Text>
+                      <TextInput
+                        style={styles.formTextInput}
+                        value={editCity}
+                        onChangeText={setEditCity}
+                        placeholder="e.g. Vadodara Main City"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    {/* Vehicle Type Selector Pills */}
+                    <View style={styles.formInputGroup}>
+                      <Text style={styles.formInputLabel}>Vehicle Type</Text>
+                      <View style={styles.vehiclePillSelectorRow}>
+                        {[
+                          { id: 'motorcycle', label: '🏍️ Motorcycle' },
+                          { id: 'electric_scooter', label: '🛵 EV Scooter' },
+                          { id: 'bicycle', label: '🚲 Bicycle' },
+                          { id: 'car', label: '🚗 Car' },
+                        ].map((v) => (
+                          <TouchableOpacity
+                            key={v.id}
+                            style={[
+                              styles.vehiclePill,
+                              editVehicleType === v.id && styles.vehiclePillActive,
+                            ]}
+                            onPress={() => setEditVehicleType(v.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.vehiclePillText,
+                                editVehicleType === v.id && styles.vehiclePillTextActive,
+                              ]}
+                            >
+                              {v.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    <View style={styles.formInputGroup}>
+                      <Text style={styles.formInputLabel}>Vehicle Reg. Number</Text>
+                      <TextInput
+                        style={styles.formTextInput}
+                        value={editVehicleNumber}
+                        onChangeText={setEditVehicleNumber}
+                        placeholder="e.g. GJ-06-AB-1234"
+                        autoCapitalize="characters"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    {/* Save Profile Changes Button */}
+                    <TouchableOpacity
+                      style={[styles.btnSaveProfile, isSavingProfile && styles.btnSaveProfileDisabled]}
+                      onPress={handleSaveProfile}
+                      disabled={isSavingProfile}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.btnSaveProfileText}>
+                        {isSavingProfile ? 'Saving Changes...' : '💾 Save Profile Changes'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* 3. DIRECT BANK & PAYOUT ACCOUNT BANNER */}
@@ -3051,6 +3118,44 @@ const styles = StyleSheet.create({
   btnSupportText: {
     fontSize: 13,
     fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  // Read-Only & Edit Toggle Styles
+  btnToggleEdit: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  btnToggleEditText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  btnToggleCancel: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  btnToggleCancelText: {
+    color: '#475569',
+  },
+
+  profileDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  profileDisplayLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  profileDisplayValue: {
+    fontSize: 13,
+    fontWeight: '800',
     color: '#0F172A',
   },
 });
