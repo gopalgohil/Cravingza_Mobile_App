@@ -393,7 +393,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         {/* Center: Title Box */}
         <View style={styles.headerTitleBox}>
           <Text style={styles.portalLabel}>
-            deliveryPartner • {currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}
+            deliveryPartner • {currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner')}
           </Text>
           <Text style={styles.currentTabLabel}>{getHeaderTitle()}</Text>
         </View>
@@ -827,7 +827,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                   style={styles.dboyBigAvatar}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.dboyName}>{currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}</Text>
+                  <Text style={styles.dboyName}>{currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner')}</Text>
                   <Text style={styles.dboyRole}>🚴 Delivery Partner (MongoDB Synced)</Text>
                   <Text style={styles.dboyRating}>{orders.length} Active Orders</Text>
                 </View>
@@ -867,8 +867,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           <ScrollView style={styles.scrollContent}>
             <View style={styles.profileCard}>
               <Text style={styles.profileSectionTitle}>Rider Account & Settings</Text>
-              <Text style={styles.profileLabel}>Name: <Text style={styles.profileVal}>{currentUser?.name || currentUser?.email?.split('@')[0] || 'Rahul Kumar'}</Text></Text>
-              <Text style={styles.profileLabel}>Email: <Text style={styles.profileVal}>{currentUser?.email || 'rahul@example.com'}</Text></Text>
+              <Text style={styles.profileLabel}>Name: <Text style={styles.profileVal}>{currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner')}</Text></Text>
+              <Text style={styles.profileLabel}>Email: <Text style={styles.profileVal}>{currentUser?.email || 'partner@cravingza.com'}</Text></Text>
               <Text style={styles.profileLabel}>Phone: <Text style={styles.profileVal}>{currentUser?.phone || '+91 98765 43210'}</Text></Text>
               <Text style={styles.profileLabel}>Vehicle: <Text style={styles.profileVal}>{currentUser?.vehicleNumber || 'Honda Activa (UP16 XY 8942)'}</Text></Text>
               <Text style={styles.profileLabel}>KYC Status: <Text style={{ color: '#16A34A', fontWeight: '700' }}>VERIFIED ✅</Text></Text>

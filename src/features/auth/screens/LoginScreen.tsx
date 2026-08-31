@@ -81,7 +81,6 @@ export const LoginScreen = ({ navigation }: any) => {
         userRole === 'delivery_partner' ||
         userRole === 'delivery' ||
         userRole === 'rider' ||
-        lowerEmail.includes('rahul') ||
         lowerEmail.includes('delivery') ||
         lowerEmail.includes('rider')
       ) {
@@ -97,14 +96,14 @@ export const LoginScreen = ({ navigation }: any) => {
       const dynamicName = trimmedEmail.split('@')[0];
       const formattedName = dynamicName.charAt(0).toUpperCase() + dynamicName.slice(1);
 
-      if (lowerEmail.includes('rahul') || lowerEmail.includes('delivery') || lowerEmail.includes('rider')) {
+      if (lowerEmail.includes('delivery') || lowerEmail.includes('rider')) {
         const dummyRider = {
           name: formattedName || 'Delivery Partner',
           email: trimmedEmail,
           phone: '+919876543210',
           role: 'delivery_partner',
         };
-        setAuthUser(dummyRider, 'token_rahul_dev');
+        setAuthUser(dummyRider, 'token_rider_dev');
         Alert.alert('Welcome Partner! 🚴', 'Logged in to Delivery Hero Portal');
         navigation.replace('DeliveryPartnerLayout');
         return;

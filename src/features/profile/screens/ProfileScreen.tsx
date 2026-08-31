@@ -580,8 +580,8 @@ return (
           </View>
         )}
 
-        {/* 🚴 Delivery Hero Portal Card (For Delivery Partners & Rahul) */}
-        {(role === 'delivery_partner' || role === 'delivery' || role === 'rider' || currentUser?.role === 'delivery_partner' || currentUser?.email?.toLowerCase().includes('rahul')) && (
+        {/* 🚴 Delivery Hero Portal Card (For Delivery Partners) */}
+        {(role === 'delivery_partner' || role === 'delivery' || role === 'rider' || currentUser?.role === 'delivery_partner') && (
           <View style={styles.menuOptionsCard}>
             <Text style={styles.sectionHeaderTitle}>🚴 Delivery Hero Portal</Text>
 
