@@ -52,13 +52,6 @@ const renderDeliveryNavIcon = (name: string, active: boolean) => {
           <Path d="M16 10a4 4 0 01-8 0" />
         </Svg>
       );
-    case 'dboy':
-      return (
-        <Svg width={size} height={size} viewBox="0 0 24 24" fill={active ? '#EA580C' : 'none'} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-          <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-          <Circle cx="12" cy="7" r="4" />
-        </Svg>
-      );
     case 'settings':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -71,12 +64,15 @@ const renderDeliveryNavIcon = (name: string, active: boolean) => {
   }
 };
 
-export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
-  const { currentUser, logout: authLogout } = useAuth();
+export const DeliveryPartnerLayoutScreen: React.FC = () => {
+  const { currentUser, logout } = useAuth();
+
+  // State Declarations
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'dboy' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'settings'>('orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [systemDeliveryFee, setSystemDeliveryFee] = useState<number>(30);
@@ -1229,56 +1225,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           );
         })()}
 
-        {/* 3. D'BOY RIDER TAB */}
-        {activeTab === 'dboy' && (
-          <ScrollView style={styles.scrollContent}>
-            <View style={styles.dboyCard}>
-              <View style={styles.dboyAvatarRow}>
-                <Image
-                  source={{
-                    uri:
-                      currentUser?.avatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-                  }}
-                  style={styles.dboyBigAvatar}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dboyName}>{currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner')}</Text>
-                  <Text style={styles.dboyRole}>🚴 Delivery Partner (MongoDB Synced)</Text>
-                  <Text style={styles.dboyRating}>{orders.length} Active Orders</Text>
-                </View>
-              </View>
-
-              <View style={styles.dividerLine} />
-
-              <View style={styles.infoGridRow}>
-                <View style={styles.infoGridBox}>
-                  <Text style={styles.infoGridTitle}>Duty Status</Text>
-                  <Text style={[styles.infoGridVal, { color: isOnline ? '#16A34A' : '#DC2626' }]}>
-                    {isOnline ? '🟢 ACTIVE ONLINE' : '🔴 OFFLINE'}
-                  </Text>
-                </View>
-                <View style={styles.infoGridBox}>
-                  <Text style={styles.infoGridTitle}>Zone Sector</Text>
-                  <Text style={styles.infoGridVal}>Main City Hub</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoGridRow}>
-                <View style={styles.infoGridBox}>
-                  <Text style={styles.infoGridTitle}>Vehicle Reg</Text>
-                  <Text style={styles.infoGridVal}>{currentUser?.vehicleNumber || 'Honda Activa (UP16 XY 8942)'}</Text>
-                </View>
-                <View style={styles.infoGridBox}>
-                  <Text style={styles.infoGridTitle}>Shift Hours</Text>
-                  <Text style={styles.infoGridVal}>Flexible Duty</Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        )}
-
-        {/* 4. SETTINGS TAB - Swiggy & Zomato Grade Delivery Hero Settings Console */}
+        {/* 3. SETTINGS TAB - Swiggy & Zomato Grade Delivery Hero Settings Console */}
         {activeTab === 'settings' && (() => {
           const bankInfo = earningsData.bankDetails || bankDetails || {};
           const bankName = bankInfo.bankName || bankDetails?.bankName || 'bank of baroda';
@@ -1594,7 +1541,6 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         {[
           { id: 'dashboard', label: 'Dashboard' },
           { id: 'orders', label: 'Orders' },
-          { id: 'dboy', label: "D'Boy" },
           { id: 'settings', label: 'Settings' },
         ].map((tab) => {
           const isActive = activeTab === tab.id;

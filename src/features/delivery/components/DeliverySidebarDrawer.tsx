@@ -76,7 +76,6 @@ export const DeliverySidebarDrawer: React.FC<DeliverySidebarDrawerProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'orders', label: 'Live Orders' },
-    { id: 'dboy', label: "Rider Profile" },
     { id: 'settings', label: 'Settings' },
   ];
 
