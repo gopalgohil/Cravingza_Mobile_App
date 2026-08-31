@@ -133,7 +133,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   }>({ visible: false, title: '', message: '' });
 
   // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend or Local Sync
-  const fetchDeliveries = useCallback(async () => {
+  const fetchDeliveries = useCallback(async (pageVal = 1, filterVal = 'all') => {
     try {
       let orderList: any[] = [];
 
@@ -142,7 +142,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           apiClient('/delivery/nearby-orders'),
           apiClient('/delivery/active'),
           apiClient('/orders'),
-          apiClient('/delivery/earnings'),
+          apiClient(`/delivery/earnings?page=${pageVal}&limit=4&filter=${filterVal}`),
           apiClient('/delivery/my-application'),
         ]);
 
@@ -259,6 +259,17 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       setRefreshing(false);
     }
   }, []);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    fetchDeliveries(newPage, earningsFilter);
+  };
+
+  const handleFilterChange = (newFilter: 'all' | 'today' | 'week') => {
+    setEarningsFilter(newFilter);
+    setCurrentPage(1);
+    fetchDeliveries(1, newFilter);
+  };
 
   // 🔹 Real-Time WebSockets (Socket.io) Instant Push Listener & Live Bell Notification Badge
   useEffect(() => {
@@ -572,6 +583,17 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
             return true; // 'all'
           });
 
+          const pagination = earningsData.pagination || {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 4,
+            totalItems: historyList.length,
+            startIndex: historyList.length > 0 ? 1 : 0,
+            endIndex: historyList.length,
+            hasNextPage: false,
+            hasPrevPage: false,
+          };
+
           return (
             <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 24 }}>
               {/* 1. TOP METRICS GRID CARDS */}
@@ -658,15 +680,15 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                   <View style={styles.filterPillsRow}>
                     <TouchableOpacity
                       style={[styles.filterPill, earningsFilter === 'all' && styles.filterPillActive]}
-                      onPress={() => setEarningsFilter('all')}
+                      onPress={() => handleFilterChange('all')}
                     >
                       <Text style={[styles.filterPillText, earningsFilter === 'all' && styles.filterPillTextActive]}>
-                        All ({historyList.length})
+                        All ({pagination.totalItems || historyList.length})
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.filterPill, earningsFilter === 'today' && styles.filterPillActive]}
-                      onPress={() => setEarningsFilter('today')}
+                      onPress={() => handleFilterChange('today')}
                     >
                       <Text style={[styles.filterPillText, earningsFilter === 'today' && styles.filterPillTextActive]}>
                         Today
@@ -674,7 +696,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.filterPill, earningsFilter === 'week' && styles.filterPillActive]}
-                      onPress={() => setEarningsFilter('week')}
+                      onPress={() => handleFilterChange('week')}
                     >
                       <Text style={[styles.filterPillText, earningsFilter === 'week' && styles.filterPillTextActive]}>
                         This Week
@@ -684,12 +706,12 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 </View>
 
                 {/* List Items */}
-                {filteredHistory.length === 0 ? (
+                {historyList.length === 0 ? (
                   <Text style={{ textAlign: 'center', color: '#64748B', paddingVertical: 20 }}>
                     No completed payout records for this filter.
                   </Text>
                 ) : (
-                  filteredHistory.map((item: any, idx: number) => {
+                  historyList.map((item: any, idx: number) => {
                     const itemDate = new Date(item.deliveredAt);
                     const formattedDateStr = !isNaN(itemDate.getTime())
                       ? `${itemDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${itemDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}`
@@ -720,10 +742,64 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                             <Text style={styles.payoutAmountText}>+₹{Number(item.amount || item.earnings || 30).toFixed(2)}</Text>
                           </View>
                         </View>
-                        {idx < filteredHistory.length - 1 && <View style={styles.dashedRowDivider} />}
+                        {idx < historyList.length - 1 && <View style={styles.dashedRowDivider} />}
                       </View>
                     );
                   })
+                )}
+
+                {/* 🔹 Industry Standard Pagination Footer Controls */}
+                {pagination && pagination.totalItems > 0 && (
+                  <View style={styles.paginationFooterRow}>
+                    <Text style={styles.paginationSummaryText}>
+                      Showing <Text style={{ fontWeight: '700', color: '#0F172A' }}>{pagination.startIndex} - {pagination.endIndex}</Text> of <Text style={{ fontWeight: '700', color: '#0F172A' }}>{pagination.totalItems}</Text> payouts
+                    </Text>
+
+                    <View style={styles.paginationButtonsRow}>
+                      {/* Prev Button */}
+                      <TouchableOpacity
+                        style={[styles.btnPageArrow, !pagination.hasPrevPage && styles.btnPageDisabled]}
+                        disabled={!pagination.hasPrevPage}
+                        onPress={() => handlePageChange(pagination.currentPage - 1)}
+                      >
+                        <Text style={[styles.btnPageArrowText, !pagination.hasPrevPage && styles.btnPageDisabledText]}>
+                          ‹ Prev
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Page Number Buttons */}
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => (
+                        <TouchableOpacity
+                          key={pageNum}
+                          style={[
+                            styles.btnPageNum,
+                            pageNum === pagination.currentPage && styles.btnPageNumActive,
+                          ]}
+                          onPress={() => handlePageChange(pageNum)}
+                        >
+                          <Text
+                            style={[
+                              styles.btnPageNumText,
+                              pageNum === pagination.currentPage && styles.btnPageNumTextActive,
+                            ]}
+                          >
+                            {pageNum}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+
+                      {/* Next Button */}
+                      <TouchableOpacity
+                        style={[styles.btnPageArrow, !pagination.hasNextPage && styles.btnPageDisabled]}
+                        disabled={!pagination.hasNextPage}
+                        onPress={() => handlePageChange(pagination.currentPage + 1)}
+                      >
+                        <Text style={[styles.btnPageArrowText, !pagination.hasNextPage && styles.btnPageDisabledText]}>
+                          Next ›
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 )}
               </View>
             </ScrollView>
@@ -2474,5 +2550,70 @@ const styles = StyleSheet.create({
   dashedRowDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
+  },
+
+  // 🔹 Pagination Footer Controls Styles
+  paginationFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  paginationSummaryText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  paginationButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  btnPageArrow: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  btnPageArrowText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  btnPageDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#F1F5F9',
+    opacity: 0.5,
+  },
+  btnPageDisabledText: {
+    color: '#94A3B8',
+  },
+  btnPageNum: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnPageNumActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  btnPageNumText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  btnPageNumTextActive: {
+    color: '#FFFFFF',
   },
 });
