@@ -199,14 +199,14 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           const newSt = (o.status || '').toLowerCase();
 
           if (
-            (!oldSt || ['pending', 'placed'].includes(oldSt.toLowerCase())) &&
-            ['preparing', 'ready', 'out_for_delivery', 'picked_up'].includes(newSt)
+            (!oldSt || ['pending', 'placed', 'accepted', 'preparing'].includes(oldSt.toLowerCase())) &&
+            ['ready_for_pickup', 'ready'].includes(newSt)
           ) {
             const restName = o.restaurant?.name || o.restaurantName || 'Restaurant Partner';
             const ordNum = o.orderNumber || `#CRV-${String(idStr).slice(-4).toUpperCase()}`;
 
-            const notifTitle = `🛵 Delivery Request from ${restName}`;
-            const notifMsg = `Order ${ordNum} marked as ${newSt.replace('_', ' ').toUpperCase()}! Click to accept & deliver.`;
+            const notifTitle = `🛵 Order Ready for Pickup! ${ordNum}`;
+            const notifMsg = `Food is ready at ${restName}! Click to accept & deliver.`;
 
             // WhatsApp-Style Top Heads-Up Push Notification
             setNotificationBanner({
@@ -289,8 +289,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         const restName = orderData.restaurant?.name || orderData.restaurantName || 'Restaurant Partner';
         const ordNum = orderData.orderNumber || (idStr ? `#CRV-${idStr.slice(-4).toUpperCase()}` : '#CRV-ORDER');
 
-        if (['ready_for_pickup', 'ready', 'placed', 'preparing', 'accepted'].includes(st)) {
-          const notifTitle = `🔔 New Order Available! ${ordNum}`;
+        if (['ready_for_pickup', 'ready'].includes(st)) {
+          const notifTitle = `🔔 Order Ready for Pickup! ${ordNum}`;
           const notifMsg = `Food is ready at ${restName}! Tap to accept & earn payout.`;
 
           // Top WhatsApp-style push banner
