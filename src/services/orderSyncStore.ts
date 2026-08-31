@@ -11,10 +11,19 @@ let sharedCustomerNotifs: any[] = [];
 
 // Shared fallback cache for seamless local testing & live API sync
 let sharedOrders: any[] = [];
+let sharedDeclinedOrderIds: string[] = [];
 
 export const getSharedOrders = () => sharedOrders;
 
 export const getSharedCustomerNotifs = () => sharedCustomerNotifs;
+
+export const getSharedDeclinedOrderIds = () => sharedDeclinedOrderIds;
+
+export const addSharedDeclinedOrderId = (orderId: string) => {
+  if (orderId && !sharedDeclinedOrderIds.includes(String(orderId))) {
+    sharedDeclinedOrderIds.push(String(orderId));
+  }
+};
 
 export const setSharedOrders = (orders: any[], notify = false) => {
   if (Array.isArray(orders) && orders.length > 0) {

@@ -26,6 +26,8 @@ import {
   setSharedOrders,
   updateSharedOrderStatus,
   subscribeOrderSync,
+  getSharedDeclinedOrderIds,
+  addSharedDeclinedOrderId,
 } from '../../../services/orderSyncStore';
 import { subscribeToOrderUpdates } from '../../../services/socketService';
 import { DeliverySidebarDrawer } from '../components/DeliverySidebarDrawer';
@@ -210,7 +212,16 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       if (Array.isArray(orderList)) {
         // Real-time status change detection from Restaurant Admin
         orderList.forEach((o) => {
-          const idStr = o._id || o.id;
+          const idStr = String(o._id || o.id || '');
+          const currentUserId = String(currentUser?._id || currentUser?.id || '');
+
+          const isDeclined =
+            declinedOrderIds.includes(idStr) ||
+            getSharedDeclinedOrderIds().includes(idStr) ||
+            (Array.isArray(o.rejectedBy) && o.rejectedBy.some((uid: any) => String(uid?._id || uid) === currentUserId));
+
+          if (isDeclined) return;
+
           const oldSt = prevOrderStatusesRef.current[idStr];
           const newSt = (o.status || '').toLowerCase();
 
@@ -330,6 +341,15 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       // 2. Trigger live notification with Red Badge Circle on Bell Icon if order is ready for pickup
       if (orderData) {
         const idStr = String(orderData._id || orderData.id || '');
+        const currentUserId = String(currentUser?._id || currentUser?.id || '');
+
+        const isDeclined =
+          declinedOrderIds.includes(idStr) ||
+          getSharedDeclinedOrderIds().includes(idStr) ||
+          (Array.isArray(orderData.rejectedBy) && orderData.rejectedBy.some((uid: any) => String(uid?._id || uid) === currentUserId));
+
+        if (isDeclined) return;
+
         const st = String(orderData.status || '').toLowerCase();
         const restName = orderData.restaurant?.name || orderData.restaurantName || 'Restaurant Partner';
         const ordNum = orderData.orderNumber || (idStr ? `#CRV-${idStr.slice(-4).toUpperCase()}` : '#CRV-ORDER');
@@ -474,6 +494,30 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       fetchDeliveries();
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleDeclineOrder = async (orderIdStr: string) => {
+    try {
+      setDeclinedOrderIds((prev) => [...prev, orderIdStr]);
+      addSharedDeclinedOrderId(orderIdStr);
+
+      // Filter out from active notifications list
+      setNotifications((prev) => prev.filter((n) => n.orderId !== orderIdStr));
+
+      try {
+        await apiClient(`/delivery/orders/${orderIdStr}/decline`, {
+          method: 'POST',
+        });
+      } catch (apiErr: any) {
+        console.log('Decline Order API note:', apiErr.message);
+      }
+
+      Alert.alert('Order Declined', 'You declined this delivery request.');
+      fetchDeliveries();
+    } catch (err: any) {
+      console.log('Decline Order error:', err.message);
+      Alert.alert('Order Declined', 'You declined this delivery request.');
     }
   };
 
@@ -1210,10 +1254,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                       <View style={styles.requestActionRow}>
                         <TouchableOpacity
                           style={styles.btnDeclineRedOutlined}
-                          onPress={() => {
-                            setDeclinedOrderIds((prev) => [...prev, orderIdStr]);
-                            Alert.alert('Order Declined', 'You declined this delivery request.');
-                          }}
+                          onPress={() => handleDeclineOrder(orderIdStr)}
                         >
                           <Text style={{ fontSize: 15 }}>🚫</Text>
                           <Text style={styles.btnDeclineRedText}>Decline</Text>
