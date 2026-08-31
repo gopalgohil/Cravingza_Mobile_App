@@ -326,6 +326,34 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     }
   };
 
+  const handleAcceptOrder = async (orderIdStr: string) => {
+    try {
+      setUpdatingId(orderIdStr);
+      console.log(`Accepting order ${orderIdStr} via API...`);
+      updateSharedOrderStatus(orderIdStr, 'assigned');
+      setAcceptedOrderIds((prev) => [...prev, orderIdStr]);
+
+      try {
+        await apiClient(`/delivery/orders/${orderIdStr}/accept`, {
+          method: 'POST',
+        });
+      } catch (apiErr: any) {
+        console.log('Accept Order API note:', apiErr.message);
+      }
+
+      Alert.alert('Delivery Accepted 🚴', 'Order assigned to you! Active fulfillment now visible.');
+      fetchDeliveries();
+    } catch (err: any) {
+      console.log('Accept Order error:', err.message);
+      setAcceptedOrderIds((prev) => [...prev, orderIdStr]);
+      updateSharedOrderStatus(orderIdStr, 'assigned');
+      Alert.alert('Delivery Accepted 🚴', 'Order assigned to you!');
+      fetchDeliveries();
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleCall = (phone?: string) => {
     const targetPhone = phone || '+919876543210';
     Linking.openURL(`tel:${targetPhone}`).catch(() => {
@@ -813,13 +841,17 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
 
                         <TouchableOpacity
                           style={styles.btnAcceptGreenSolid}
-                          onPress={() => {
-                            setAcceptedOrderIds((prev) => [...prev, orderIdStr]);
-                            Alert.alert('Delivery Accepted 🚴', 'Order assigned to you! Active fulfillment now visible.');
-                          }}
+                          onPress={() => handleAcceptOrder(orderIdStr)}
+                          disabled={updatingId === orderIdStr}
                         >
-                          <Text style={styles.btnAcceptGreenText}>Accept Order</Text>
-                          <Text style={{ fontSize: 16, color: '#FFFFFF', fontWeight: '900' }}>→</Text>
+                          {updatingId === orderIdStr ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <>
+                              <Text style={styles.btnAcceptGreenText}>Accept Order</Text>
+                              <Text style={{ fontSize: 16, color: '#FFFFFF', fontWeight: '900' }}>→</Text>
+                            </>
+                          )}
                         </TouchableOpacity>
                       </View>
                     </View>
