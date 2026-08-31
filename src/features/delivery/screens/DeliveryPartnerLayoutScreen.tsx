@@ -566,15 +566,24 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 // 🔹 1. IF AN ORDER IS ACCEPTED -> SHOW ONLY THAT EXCLUSIVE ACTIVE DELIVERY FULFILLMENT SCREEN (Matches Web App Screenshot)
                 (() => {
                   const item = activeDeliveryOrder;
-                  const orderIdStr = item._id || item.id;
-                  const step = getStepNumber(item.status);
-                  const restaurantName = item.restaurant?.name || item.restaurantName || 'Burger Boss';
-                  const storePhone = item.restaurant?.phone || item.restaurantPhone || '+919123456789';
-                  const restaurantAddress = item.restaurant?.address || item.restaurantAddress || '101 Burger Boulevard';
-                  const customerName = item.customer?.name || item.user?.name || item.userName || 'Customer';
-                  const customerPhone = item.customer?.phone || item.user?.phone || item.userPhone || '+919876543210';
+                  const targetOrder = item.order && typeof item.order === 'object' ? item.order : item;
+                  const orderIdStr = targetOrder._id || targetOrder.id || item._id || item.id;
+                  const step = getStepNumber(targetOrder.status || item.status);
+                  const restaurantName = targetOrder.restaurant?.name || item.restaurant?.name || targetOrder.restaurantName || 'Restaurant';
+                  const storePhone = targetOrder.restaurant?.phone || item.restaurant?.phone || item.restaurantPhone || '+919876543210';
+                  
+                  let restaurantAddress = 'City Centre';
+                  const rLoc = targetOrder.restaurant?.location?.address || targetOrder.restaurant?.address || item.restaurant?.location?.address || item.restaurant?.address;
+                  if (rLoc && typeof rLoc === 'string' && rLoc.trim().length > 0) {
+                    restaurantAddress = rLoc.trim();
+                  } else if (rLoc && typeof rLoc === 'object' && rLoc.address) {
+                    restaurantAddress = rLoc.address;
+                  }
+
+                  const customerName = targetOrder.customer?.name || item.customer?.name || targetOrder.user?.name || targetOrder.userName || 'Customer';
+                  const customerPhone = targetOrder.customer?.phone || item.customer?.phone || targetOrder.user?.phone || item.userPhone || '+919876543210';
                   let customerAddress = 'Address not provided';
-                  const da = item.deliveryAddress || item.address || item.shippingAddress;
+                  const da = targetOrder.deliveryAddress || item.deliveryAddress || targetOrder.address || item.address || targetOrder.shippingAddress;
                   if (typeof da === 'string' && da.trim().length > 0) {
                     customerAddress = da.trim();
                   } else if (da && typeof da === 'object') {
@@ -592,14 +601,18 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                     }
                   }
 
-                  const items = Array.isArray(item.items) && item.items.length > 0
-                    ? item.items
-                    : [
-                      { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
-                      { name: 'Truffle Parmesan Fries', quantity: 1, price: 308.99 },
-                    ];
-                  const totalAmount = Number(item.totalAmount || item.totalPrice || 694.38);
-                  const paymentMethod = item.paymentMethod || item.paymentType || 'COD';
+                  const items = Array.isArray(targetOrder.items) && targetOrder.items.length > 0
+                    ? targetOrder.items
+                    : (Array.isArray(item.items) ? item.items : []);
+                  const totalAmount = Number(
+                    targetOrder.totalAmount !== undefined && targetOrder.totalAmount !== null
+                      ? targetOrder.totalAmount
+                      : (targetOrder.totalPrice !== undefined && targetOrder.totalPrice !== null
+                          ? targetOrder.totalPrice
+                          : (item.totalAmount || item.totalPrice || 0))
+                  );
+                  const paymentMethod = String(targetOrder.paymentMethod || targetOrder.paymentType || item.paymentMethod || item.paymentType || 'COD').toUpperCase();
+                  const isCOD = !(paymentMethod.includes('ONLINE') || paymentMethod.includes('RAZORPAY') || paymentMethod.includes('UPI') || paymentMethod.includes('CARD'));
 
                   return (
                     <View style={styles.webOrderCard}>
@@ -722,12 +735,24 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         <Text style={styles.itemsCardHeader}>Order Items & Collectable Cash</Text>
                         <View style={styles.dashedLineDivider} />
 
-                        {items.map((dish, i) => (
-                          <View key={i} style={styles.dishRow}>
-                            <Text style={styles.dishName}>{dish.quantity || 1}x {dish.name || 'Food Item'}</Text>
-                            <Text style={styles.dishPrice}>₹{((dish.price || totalAmount) * (dish.quantity || 1)).toFixed(2)}</Text>
-                          </View>
-                        ))}
+                        {items.length === 0 ? (
+                          <Text style={{ textAlign: 'center', color: '#64748B', paddingVertical: 8 }}>
+                            Order items details loaded from restaurant.
+                          </Text>
+                        ) : (
+                          items.map((dish: any, i: number) => {
+                            const itemName = dish.name || dish.menuItem?.name || dish.title || 'Food Item';
+                            const itemPrice = Number(dish.price || dish.menuItem?.price || 0);
+                            const itemQty = Number(dish.quantity || 1);
+                            const lineTotal = itemPrice > 0 ? (itemPrice * itemQty) : totalAmount;
+                            return (
+                              <View key={i} style={styles.dishRow}>
+                                <Text style={styles.dishName}>{itemQty}x {itemName}</Text>
+                                <Text style={styles.dishPrice}>₹{lineTotal.toFixed(2)}</Text>
+                              </View>
+                            );
+                          })
+                        )}
 
                         <View style={styles.dashedLineDivider} />
 
@@ -736,7 +761,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Text style={{ fontSize: 16 }}>💵</Text>
                             <Text style={styles.collectCashText}>
-                              {paymentMethod === 'COD' ? 'COLLECT CASH FROM CUSTOMER' : 'PAID ONLINE VIA UPI'}
+                              {isCOD ? 'COLLECT CASH FROM CUSTOMER' : 'PAID ONLINE VIA UPI / RAZORPAY'}
                             </Text>
                           </View>
                           <Text style={styles.totalCashAmount}>₹{totalAmount.toFixed(2)}</Text>
@@ -760,11 +785,20 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
               ) : (
                 // 🔹 2. IF NO ACTIVE ACCEPTED ORDER -> RENDER PENDING REQUEST OFFER CARDS
                 unacceptedOrders.map((item, idx) => {
-                  const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
-                  const restaurantName = item.restaurant?.name || item.restaurantName || 'Burger Boss';
-                  const restaurantAddress = item.restaurant?.address || item.restaurantAddress || '101 Burger Boulevard';
+                  const targetOrder = item.order && typeof item.order === 'object' ? item.order : item;
+                  const orderIdStr = targetOrder._id || targetOrder.id || item._id || item.id || `ord_dlv_${idx}`;
+                  const restaurantName = targetOrder.restaurant?.name || item.restaurant?.name || targetOrder.restaurantName || 'Restaurant';
+                  
+                  let restaurantAddress = 'City Centre';
+                  const rLoc = targetOrder.restaurant?.location?.address || targetOrder.restaurant?.address || item.restaurant?.location?.address || item.restaurant?.address;
+                  if (rLoc && typeof rLoc === 'string' && rLoc.trim().length > 0) {
+                    restaurantAddress = rLoc.trim();
+                  } else if (rLoc && typeof rLoc === 'object' && rLoc.address) {
+                    restaurantAddress = rLoc.address;
+                  }
+
                   let customerAddress = 'Address not provided';
-                  const da = item.deliveryAddress || item.address || item.shippingAddress;
+                  const da = targetOrder.deliveryAddress || item.deliveryAddress || targetOrder.address || item.address || targetOrder.shippingAddress;
                   if (typeof da === 'string' && da.trim().length > 0) {
                     customerAddress = da.trim();
                   } else if (da && typeof da === 'object') {
@@ -782,14 +816,17 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                     }
                   }
 
-                  const items = Array.isArray(item.items) && item.items.length > 0
-                    ? item.items
-                    : [
-                      { name: 'Double Cheddar Bacon Smash', quantity: 1, price: 294.99 },
-                      { name: 'Truffle Parmesan Fries', quantity: 1, price: 308.99 },
-                    ];
-                  const totalAmount = Number(item.totalAmount || item.totalPrice || 694.38);
-                  const payoutVal = (item.estimatedEarnings || item.deliveryFee || item.earnings || systemDeliveryFee || 30).toString();
+                  const items = Array.isArray(targetOrder.items) && targetOrder.items.length > 0
+                    ? targetOrder.items
+                    : (Array.isArray(item.items) ? item.items : []);
+                  const totalAmount = Number(
+                    targetOrder.totalAmount !== undefined && targetOrder.totalAmount !== null
+                      ? targetOrder.totalAmount
+                      : (targetOrder.totalPrice !== undefined && targetOrder.totalPrice !== null
+                          ? targetOrder.totalPrice
+                          : (item.totalAmount || item.totalPrice || 0))
+                  );
+                  const payoutVal = (targetOrder.estimatedEarnings || targetOrder.deliveryFee || item.estimatedEarnings || item.deliveryFee || systemDeliveryFee || 30).toString();
                   const itemCount = items.length;
 
                   return (
