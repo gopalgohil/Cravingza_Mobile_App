@@ -64,8 +64,8 @@ const renderDeliveryNavIcon = (name: string, active: boolean) => {
   }
 };
 
-export const DeliveryPartnerLayoutScreen: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
+  const { currentUser, logout: authLogout } = useAuth();
 
   // State Declarations
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -490,12 +490,20 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => {
-          authLogout();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
+        onPress: async () => {
+          try {
+            if (authLogout) {
+              await authLogout();
+            }
+          } catch (e) {
+            console.log('Error during logout:', e);
+          }
+          if (navigation && typeof navigation.reset === 'function') {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
         },
       },
     ]);
