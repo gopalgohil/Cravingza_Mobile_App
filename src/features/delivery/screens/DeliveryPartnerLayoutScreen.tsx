@@ -78,6 +78,23 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'dboy' | 'settings'>('orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [systemDeliveryFee, setSystemDeliveryFee] = useState<number>(30);
+
+  // Fetch Live Super Admin Delivery Fee Settings for Rider Earnings
+  useEffect(() => {
+    const fetchSystemFee = async () => {
+      try {
+        const res = await apiClient('/settings');
+        const fee = res?.data?.baseDeliveryFee !== undefined ? Number(res.data.baseDeliveryFee) : 30;
+        if (!isNaN(fee) && fee > 0) {
+          setSystemDeliveryFee(fee);
+        }
+      } catch (err) {
+        console.log('Error fetching system delivery fee for rider portal:', err);
+      }
+    };
+    fetchSystemFee();
+  }, []);
 
   // Drawer and Notifications Modal states
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -333,11 +350,11 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     ]);
   };
 
-  // 🔹 Calculate Live Dashboard Metrics dynamically from MongoDB Atlas orders
+  // 🔹 Calculate Live Dashboard Metrics dynamically from Super Admin system settings & MongoDB orders
   const completedOrders = orders.filter((o) => o.status === 'delivered' || o.status === 'DELIVERED');
   const todayEarnings = completedOrders.reduce((sum, o) => {
-    const earningVal = o.earnings ? Number(o.earnings) : (o.earning ? Number(o.earning) : (o.deliveryFee ? Number(o.deliveryFee) : Number(o.totalAmount || o.totalPrice || 0) * 0.15));
-    return sum + (isNaN(earningVal) ? 30 : earningVal);
+    const earningVal = o.earnings ? Number(o.earnings) : (o.earning ? Number(o.earning) : (o.deliveryFee ? Number(o.deliveryFee) : (o.estimatedEarnings ? Number(o.estimatedEarnings) : systemDeliveryFee)));
+    return sum + (isNaN(earningVal) ? systemDeliveryFee : earningVal);
   }, 0);
 
   const getHeaderTitle = () => {
@@ -461,7 +478,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         <Text style={styles.historyDate}>Order #{o.orderNumber || String(o._id || o.id).slice(-6).toUpperCase()}</Text>
                         <Text style={styles.historySub}>{o.restaurant?.name || 'Restaurant'} • Status: {String(o.status || 'placed').toUpperCase()}</Text>
                       </View>
-                      <Text style={styles.historyAmount}>+₹{(o.totalAmount || 100) * 0.15}</Text>
+                      <Text style={styles.historyAmount}>+₹{o.earnings || o.earning || o.deliveryFee || o.estimatedEarnings || systemDeliveryFee}</Text>
                     </View>
                     {idx < orders.length - 1 && <View style={styles.dividerLine} />}
                   </View>
@@ -743,7 +760,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                       { name: 'Truffle Parmesan Fries', quantity: 1, price: 308.99 },
                     ];
                   const totalAmount = Number(item.totalAmount || item.totalPrice || 694.38);
-                  const payoutVal = (totalAmount * 0.15 > 35 ? totalAmount * 0.15 : 40).toFixed(0);
+                  const payoutVal = (item.estimatedEarnings || item.deliveryFee || item.earnings || systemDeliveryFee || 30).toString();
                   const itemCount = items.length;
 
                   return (
