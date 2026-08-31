@@ -1503,25 +1503,52 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.kycRow}>
-                  <Text style={styles.kycDocName}>🪪 Driving License</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Rect x="2" y="4" width="20" height="16" rx="2" />
+                      <Circle cx="8" cy="10" r="2" />
+                      <Path d="M14 10h4M14 14h4M6 16c0-1.5 1.5-2.5 3.5-2.5s3.5 1 3.5 2.5" />
+                    </Svg>
+                    <Text style={styles.kycDocName}>Driving License</Text>
+                  </View>
                   <View style={styles.kycStatusPassPill}>
-                    <Text style={styles.kycStatusPassText}>VERIFIED ✅</Text>
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M20 6L9 17l-5-5" />
+                    </Svg>
+                    <Text style={styles.kycStatusPassText}>VERIFIED</Text>
                   </View>
                 </View>
                 <View style={styles.dashedRowDivider} />
 
                 <View style={styles.kycRow}>
-                  <Text style={styles.kycDocName}>🆔 Aadhaar Card Verification</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Rect x="3" y="4" width="18" height="16" rx="2" />
+                      <Path d="M7 8h10M7 12h6M7 16h4" />
+                    </Svg>
+                    <Text style={styles.kycDocName}>Aadhaar Card Verification</Text>
+                  </View>
                   <View style={styles.kycStatusPassPill}>
-                    <Text style={styles.kycStatusPassText}>VERIFIED ✅</Text>
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M20 6L9 17l-5-5" />
+                    </Svg>
+                    <Text style={styles.kycStatusPassText}>VERIFIED</Text>
                   </View>
                 </View>
                 <View style={styles.dashedRowDivider} />
 
                 <View style={styles.kycRow}>
-                  <Text style={styles.kycDocName}>🛡️ Background Check</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </Svg>
+                    <Text style={styles.kycDocName}>Background Check</Text>
+                  </View>
                   <View style={styles.kycStatusPassPill}>
-                    <Text style={styles.kycStatusPassText}>PASSED ✅</Text>
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M20 6L9 17l-5-5" />
+                    </Svg>
+                    <Text style={styles.kycStatusPassText}>PASSED</Text>
                   </View>
                 </View>
               </View>
@@ -3093,6 +3120,9 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   kycStatusPassPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
     paddingVertical: 3,
