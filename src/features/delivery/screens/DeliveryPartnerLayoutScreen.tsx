@@ -1555,7 +1555,7 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
 
               {/* 5. ACCOUNT LOGOUT BUTTON */}
               <TouchableOpacity style={styles.btnLogoutFull} onPress={handleLogout} activeOpacity={0.85}>
-                <Text style={styles.btnLogoutFullText}>🚪 Logout from Delivery Hero Account</Text>
+                <Text style={styles.btnLogoutFullText}>Logout from Delivery Hero Account</Text>
               </TouchableOpacity>
             </ScrollView>
           );
