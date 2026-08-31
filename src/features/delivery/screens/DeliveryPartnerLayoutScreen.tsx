@@ -700,11 +700,18 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 <View style={styles.heroEarningsCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={styles.heroEarningsHeaderTitle}>TODAY'S EARNINGS</Text>
-                    <Text style={{ fontSize: 16 }}>🗓️</Text>
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <Path d="M16 2v4M8 2v4M3 10h18" />
+                    </Svg>
                   </View>
                   <Text style={styles.heroEarningsBigVal}>₹{tEarnings.toFixed(0)}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <Text style={{ fontSize: 11, color: '#A7F3D0' }}>📈 Refreshes on completion</Text>
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#A7F3D0" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M23 6l-9.5 9.5-5-5L1 18" />
+                      <Path d="M17 6h6v6" />
+                    </Svg>
+                    <Text style={{ fontSize: 11, color: '#A7F3D0' }}>Refreshes on completion</Text>
                   </View>
                 </View>
 
@@ -712,7 +719,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 <View style={styles.subMetricCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={styles.subMetricCardLabel}>THIS WEEK</Text>
-                    <Text style={{ fontSize: 14 }}>📅</Text>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <Path d="M16 2v4M8 2v4M3 10h18" />
+                    </Svg>
                   </View>
                   <Text style={styles.subMetricCardVal}>₹{wEarnings.toFixed(0)}</Text>
                   <Text style={styles.subMetricCardSub}>Last 7 days accumulated</Text>
@@ -722,7 +732,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 <View style={styles.subMetricCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={styles.subMetricCardLabel}>TOTAL LIFETIME</Text>
-                    <Text style={{ fontSize: 14 }}>👛</Text>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M20 7h-3a2 2 0 01-2-2V4a2 2 0 00-2-2H4a2 2 0 00-2 2v16a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+                      <Circle cx="16" cy="14" r="1.5" />
+                    </Svg>
                   </View>
                   <Text style={[styles.subMetricCardVal, { color: '#EA580C' }]}>₹{totEarnings.toFixed(0)}</Text>
                   <Text style={styles.subMetricCardSub}>All completed deliveries</Text>
@@ -732,7 +745,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 <View style={styles.subMetricCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={styles.subMetricCardLabel}>COMPLETED TRIPS</Text>
-                    <Text style={{ fontSize: 14 }}>🛵</Text>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </Svg>
                   </View>
                   <Text style={styles.subMetricCardVal}>{completedJobsCount} Jobs</Text>
                   <Text style={[styles.subMetricCardSub, { color: '#059669', fontWeight: '600' }]}>
@@ -745,12 +760,17 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
               <View style={styles.bankPayoutCard}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <View style={styles.bankIconCircle}>
-                    <Text style={{ fontSize: 18 }}>🏦</Text>
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 3l9 7H3l9-7z" />
+                    </Svg>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.bankPayoutTitle}>Direct Bank Payout Account</Text>
                       <View style={styles.verifiedBadgePill}>
+                        <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                          <Path d="M20 6L9 17l-5-5" />
+                        </Svg>
                         <Text style={styles.verifiedBadgeText}>Verified</Text>
                       </View>
                     </View>
@@ -820,7 +840,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         <View style={styles.payoutRowCard}>
                           {/* Store Icon */}
                           <View style={styles.payoutStoreIconCircle}>
-                            <Text style={{ fontSize: 18 }}>🏪</Text>
+                            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                              <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                              <Path d="M9 22V12h6v10" />
+                            </Svg>
                           </View>
 
                           {/* Order Details */}
@@ -834,7 +857,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           {/* Status Badge & Amount */}
                           <View style={{ alignItems: 'flex-end', gap: 4 }}>
                             <View style={styles.deliveredPillBadge}>
-                              <Text style={styles.deliveredPillIcon}>✓</Text>
+                              <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M20 6L9 17l-5-5" />
+                              </Svg>
                               <Text style={styles.deliveredPillText}>Delivered</Text>
                             </View>
                             <Text style={styles.payoutAmountText}>+₹{Number(item.amount || item.earnings || 30).toFixed(2)}</Text>
@@ -1012,7 +1037,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           {/* Step 1: Assigned */}
                           <View style={styles.stepItem}>
                             <View style={[styles.stepCircleIcon, step >= 1 && styles.stepCircleActive]}>
-                              <Text style={[styles.stepIconEmoji, step >= 1 && styles.stepIconEmojiActive]}>📋</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={step >= 1 ? "#FFFFFF" : "#64748B"} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+                                <Rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                              </Svg>
                             </View>
                             <Text style={[styles.stepLabel, step >= 1 && styles.stepLabelActive]}>Assigned</Text>
                           </View>
@@ -1022,7 +1050,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           {/* Step 2: Picked Up */}
                           <View style={styles.stepItem}>
                             <View style={[styles.stepCircleIcon, step >= 2 && styles.stepCircleActive]}>
-                              <Text style={[styles.stepIconEmoji, step >= 2 && styles.stepIconEmojiActive]}>🏪</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={step >= 2 ? "#FFFFFF" : "#64748B"} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                                <Path d="M9 22V12h6v10" />
+                              </Svg>
                             </View>
                             <Text style={[styles.stepLabel, step >= 2 && styles.stepLabelActive]}>Picked Up</Text>
                           </View>
@@ -1032,7 +1063,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           {/* Step 3: On the Way */}
                           <View style={styles.stepItem}>
                             <View style={[styles.stepCircleIcon, step >= 3 && styles.stepCircleActive]}>
-                              <Text style={[styles.stepIconEmoji, step >= 3 && styles.stepIconEmojiActive]}>🛵</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={step >= 3 ? "#FFFFFF" : "#64748B"} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                              </Svg>
                             </View>
                             <Text style={[styles.stepLabel, step >= 3 && styles.stepLabelActive]}>On the Way</Text>
                           </View>
@@ -1042,7 +1075,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                           {/* Step 4: Delivered */}
                           <View style={styles.stepItem}>
                             <View style={[styles.stepCircleIcon, step >= 4 && styles.stepCircleActive]}>
-                              <Text style={[styles.stepIconEmoji, step >= 4 && styles.stepIconEmojiActive]}>✓</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={step >= 4 ? "#FFFFFF" : "#64748B"} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M20 6L9 17l-5-5" />
+                              </Svg>
                             </View>
                             <Text style={[styles.stepLabel, step >= 4 && styles.stepLabelActive]}>Delivered</Text>
                           </View>
@@ -1062,10 +1097,10 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                             <ActivityIndicator size="small" color="#FFF" />
                           ) : (
                             <Text style={styles.heroActionButtonText}>
-                              {step === 1 && '🏪 Mark Food Picked Up from Restaurant'}
-                              {step === 2 && '🛵 Start Delivery (On the Way)'}
-                              {step === 3 && '✅ Mark Order Delivered 🎉'}
-                              {step === 4 && '🎉 Order Delivered Successfully'}
+                              {step === 1 && 'Mark Food Picked Up from Restaurant'}
+                              {step === 2 && 'Start Delivery (On the Way)'}
+                              {step === 3 && 'Mark Order Delivered'}
+                              {step === 4 && 'Order Delivered Successfully'}
                             </Text>
                           )}
                         </TouchableOpacity>
@@ -1077,14 +1112,20 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         <View style={styles.columnBox}>
                           <View style={styles.boxHeader}>
                             <View style={styles.storeIconCircle}>
-                              <Text style={{ fontSize: 14 }}>🏪</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                                <Path d="M9 22V12h6v10" />
+                              </Svg>
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.boxTitle} numberOfLines={1}>{restaurantName}</Text>
                               <Text style={styles.boxSub}>Pickup Location</Text>
                             </View>
                             <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(storePhone)}>
-                              <Text style={styles.btnCallGreenText}>📞 Call Store</Text>
+                              <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+                              </Svg>
+                              <Text style={styles.btnCallGreenText}>Call Store</Text>
                             </TouchableOpacity>
                           </View>
 
@@ -1098,14 +1139,20 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         <View style={styles.columnBox}>
                           <View style={styles.boxHeader}>
                             <View style={styles.userIconCircle}>
-                              <Text style={{ fontSize: 14 }}>👤</Text>
+                              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                                <Circle cx="12" cy="7" r="4" />
+                              </Svg>
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.boxTitle} numberOfLines={1}>{customerName}</Text>
                               <Text style={styles.boxSub}>Delivery Recipient</Text>
                             </View>
                             <TouchableOpacity style={styles.btnCallGreen} onPress={() => handleCall(customerPhone)}>
-                              <Text style={styles.btnCallGreenText}>📞 Call Customer</Text>
+                              <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+                              </Svg>
+                              <Text style={styles.btnCallGreenText}>Call Customer</Text>
                             </TouchableOpacity>
                           </View>
 
@@ -1145,7 +1192,11 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                         {/* Payment Footer Row */}
                         <View style={styles.cashFooterRow}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 16 }}>💵</Text>
+                            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                              <Rect x="2" y="6" width="20" height="12" rx="2" />
+                              <Circle cx="12" cy="12" r="2" />
+                              <Path d="M6 12h.01M18 12h.01" />
+                            </Svg>
                             <Text style={styles.collectCashText}>
                               {isCOD ? 'COLLECT CASH FROM CUSTOMER' : 'PAID ONLINE VIA UPI / RAZORPAY'}
                             </Text>
@@ -2386,6 +2437,9 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   btnCallGreen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -2770,6 +2824,9 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   verifiedBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 6,
     paddingVertical: 2,
