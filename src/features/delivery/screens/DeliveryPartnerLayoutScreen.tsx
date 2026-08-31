@@ -119,7 +119,6 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
   }, []);
 
   // Drawer and Notifications Modal states
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<any[]>([
     {
