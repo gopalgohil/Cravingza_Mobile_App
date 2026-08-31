@@ -1450,7 +1450,7 @@ export const DeliveryPartnerLayoutScreen: React.FC = () => {
                       activeOpacity={0.8}
                     >
                       <Text style={styles.btnSaveProfileText}>
-                        {isSavingProfile ? 'Saving Changes...' : '💾 Save Profile Changes'}
+                        {isSavingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
                       </Text>
                     </TouchableOpacity>
                   </View>
