@@ -56,6 +56,7 @@ export const OwnerOrdersTab: React.FC = () => {
       const res = await getOwnerOrdersApi();
       const list = res?.data || res?.orders || (Array.isArray(res) ? res : null);
       if (Array.isArray(list)) {
+        setSharedOrders(list);
         setOrders(list);
       } else {
         setOrders(getSharedOrders());
@@ -457,11 +458,21 @@ export const OwnerOrdersTab: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Ready: Waiting for Delivery Partner */}
+          {/* Ready: Waiting for Delivery Partner or Partner Assigned */}
           {isReady && (
-            <View style={styles.waitingBadgePill}>
-              <Text style={{ fontSize: 12 }}>🕒</Text>
-              <Text style={styles.waitingBadgePillText} numberOfLines={1}>Waiting for Delivery Partner...</Text>
+            <View style={[
+              styles.waitingBadgePill,
+              (item.deliveryPartner || item.deliveryPartnerName) && { backgroundColor: '#E0F2FE', borderColor: '#BAE6FD' }
+            ]}>
+              <Text style={{ fontSize: 12 }}>{(item.deliveryPartner || item.deliveryPartnerName) ? '🚴' : '🕒'}</Text>
+              <Text style={[
+                styles.waitingBadgePillText,
+                (item.deliveryPartner || item.deliveryPartnerName) && { color: '#0284C7' }
+              ]} numberOfLines={1}>
+                {(item.deliveryPartner || item.deliveryPartnerName)
+                  ? `Partner Assigned: ${item.deliveryPartner?.name || item.deliveryPartnerName || 'Rider'}`
+                  : 'Waiting for Delivery Partner...'}
+              </Text>
             </View>
           )}
 

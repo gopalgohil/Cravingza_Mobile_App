@@ -545,7 +545,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
               acceptedOrderIds.includes(orderIdStr) ||
               ['picked_up', 'out_for_delivery', 'on_the_way'].includes(st);
 
-            return !isAccepted;
+            const isReadyForPickup = ['ready', 'ready_for_pickup'].includes(st);
+            return !isAccepted && isReadyForPickup;
           });
 
           return (
