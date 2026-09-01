@@ -459,7 +459,7 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
                     <Text style={styles.docRowTitle}>📜 FSSAI License Document</Text>
                     <Text style={styles.docRowSub}>Click to view high-res document</Text>
                   </View>
-                  <Text style={styles.docViewLinkText}>View 👁️</Text>
+                  <Text style={styles.docViewLinkText}>View →</Text>
                 </TouchableOpacity>
 
                 {/* Document 2: GST / Business Registry */}
@@ -472,7 +472,7 @@ export const AdminApprovalsScreen = ({ navigation }: any) => {
                     <Text style={styles.docRowTitle}>🧾 Business Registry Copy (GST)</Text>
                     <Text style={styles.docRowSub}>Click to view high-res document</Text>
                   </View>
-                  <Text style={styles.docViewLinkText}>View 👁️</Text>
+                  <Text style={styles.docViewLinkText}>View →</Text>
                 </TouchableOpacity>
               </View>
 
