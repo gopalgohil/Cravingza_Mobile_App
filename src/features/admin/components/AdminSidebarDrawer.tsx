@@ -37,6 +37,7 @@ interface AdminSidebarDrawerProps {
   activeTab: string;
   onSelectTab: (tabId: string) => void;
   onLogout: () => void;
+  onNavigateCustomerSite?: () => void;
   adminName?: string;
   adminEmail?: string;
 }
@@ -47,6 +48,7 @@ export const AdminSidebarDrawer: React.FC<AdminSidebarDrawerProps> = ({
   activeTab,
   onSelectTab,
   onLogout,
+  onNavigateCustomerSite,
   adminName = 'SuperAdmin',
   adminEmail = 'admin@cravingza.com',
 }) => {
@@ -129,10 +131,25 @@ export const AdminSidebarDrawer: React.FC<AdminSidebarDrawerProps> = ({
 
           <View style={styles.divider} />
 
-          {/* Bottom Logout Button with Modern Logout Icon */}
-          <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.8}>
-            <Text style={styles.logoutBtnText}>Logout Account</Text>
-          </TouchableOpacity>
+          {/* Bottom Customer Site & Logout Area */}
+          <View style={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.md }}>
+            {onNavigateCustomerSite && (
+              <TouchableOpacity
+                style={styles.customerSiteBtn}
+                onPress={() => {
+                  onClose();
+                  onNavigateCustomerSite();
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.customerSiteBtnText}>🛍️ Customer Site</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.8}>
+              <Text style={styles.logoutBtnText}>Logout Account</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -251,6 +268,22 @@ const styles = StyleSheet.create({
   menuItemTextActive: {
     color: '#9A3412', // Bold red-orange text
     fontWeight: '800',
+  },
+  customerSiteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    marginBottom: 8,
+  },
+  customerSiteBtnText: {
+    fontSize: FONT_SIZE.xs + 1,
+    fontWeight: '800',
+    color: '#EA580C',
   },
   logoutBtn: {
     flexDirection: 'row',

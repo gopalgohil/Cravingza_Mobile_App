@@ -175,6 +175,7 @@ export const AdminLayoutScreen = ({ navigation }: any) => {
           activeTab={activeTab}
           onSelectTab={(tabId) => setActiveTab(tabId)}
           onLogout={handleLogout}
+          onNavigateCustomerSite={() => navigation.navigate('Home')}
           adminName={user?.name || 'superAdmin'}
           adminEmail={user?.email || 'admin@cravingza.com'}
         />

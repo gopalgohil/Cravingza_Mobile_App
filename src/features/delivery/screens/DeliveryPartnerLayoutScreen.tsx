@@ -1871,6 +1871,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         activeTab={activeTab}
         onSelectTab={(tabId) => setActiveTab(tabId as any)}
         onLogout={handleLogout}
+        onNavigateCustomerSite={() => navigation.navigate('Home')}
         currentUser={currentUser}
         isOnline={isOnline}
         onToggleOnline={handleToggleOnline}
