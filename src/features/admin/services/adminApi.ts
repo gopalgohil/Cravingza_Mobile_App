@@ -76,9 +76,9 @@ export const getAdminAnalyticsStatsApi = async (range: string = 'Last 30 Days') 
   return await apiClient(`/admin/analytics-stats?range=${encodeURIComponent(range)}`);
 };
 
-// 13. Update Admin Password -> PATCH /api/users/password
+// 13. Update Admin Password -> PATCH /api/user/password
 export const updateAdminPasswordApi = async (payload: { currentPassword: string; newPassword: string }) => {
-  return await apiClient('/users/password', {
+  return await apiClient('/user/password', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
