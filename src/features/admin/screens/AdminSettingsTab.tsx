@@ -45,6 +45,10 @@ export const AdminSettingsTab = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
@@ -394,40 +398,103 @@ export const AdminSettingsTab = () => {
           {/* Current Password */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>CURRENT PASSWORD</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              placeholderTextColor="#94A3B8"
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.passwordInput}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showCurrentPassword}
+                placeholderTextColor="#94A3B8"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                activeOpacity={0.7}
+              >
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  {showCurrentPassword ? (
+                    <>
+                      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <Circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <Path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <Path d="M1 1l22 22" />
+                    </>
+                  )}
+                </Svg>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* New Password */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>NEW PASSWORD</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="Min. 6 characters"
-              secureTextEntry
-              placeholderTextColor="#94A3B8"
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.passwordInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Min. 6 characters"
+                secureTextEntry={!showNewPassword}
+                placeholderTextColor="#94A3B8"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                activeOpacity={0.7}
+              >
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  {showNewPassword ? (
+                    <>
+                      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <Circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <Path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <Path d="M1 1l22 22" />
+                    </>
+                  )}
+                </Svg>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Confirm New Password */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>CONFIRM NEW PASSWORD</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter new password"
-              secureTextEntry
-              placeholderTextColor="#94A3B8"
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.passwordInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter new password"
+                secureTextEntry={!showConfirmPassword}
+                placeholderTextColor="#94A3B8"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                activeOpacity={0.7}
+              >
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  {showConfirmPassword ? (
+                    <>
+                      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <Circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <Path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <Path d="M1 1l22 22" />
+                    </>
+                  )}
+                </Svg>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Update Password Button */}
@@ -552,6 +619,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#0F172A',
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   maintenanceBox: {
     flexDirection: 'row',
