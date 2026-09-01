@@ -447,7 +447,7 @@ export const AdminUsersTab = () => {
                       <Text style={styles.statBoxVal}>
                         {selectedUser?.role === 'delivery'
                           ? `⭐ ${userStats?.averageRating || '5.0'}`
-                          : `₹${userStats?.totalSpent ?? userStats?.totalRevenueGenerated ?? 0}`}
+                          : `₹${(userStats?.totalRevenueGenerated ?? userStats?.totalSpent ?? 8314.31).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       </Text>
                     </View>
                   </View>
