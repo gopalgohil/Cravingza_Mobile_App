@@ -4,24 +4,15 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getAdminDashboardApi } from '../services/adminApi';
-
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
-
-import {
-  RevenueIcon,
-  OrdersBagIcon,
-  UserManagementIcon,
-  AnalyticsIcon,
-  ApprovalsIcon,
-  TrophyIcon,
-} from '../components/AdminSidebarIcons';
 
 interface AdminDashboardTabProps {
   onNavigateTab: (tabId: string) => void;
@@ -36,18 +27,14 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
     try {
       setLoading(true);
       const res = await getAdminDashboardApi();
-      setDashboardData(res?.data || res);
+      if (res && (res.data || res.success)) {
+        setDashboardData(res.data || res);
+      } else {
+        setDashboardData(null);
+      }
     } catch (err: any) {
-      setDashboardData({
-        totalRevenue: '₹45,890',
-        totalOrders: 142,
-        activeUsers: 86,
-        convRate: '4.8%',
-        topRestaurants: [
-          { rank: 1, name: 'Punjabi Dhaba & Grill', orders: 48, revenue: '₹18,400', rating: 4.8 },
-          { rank: 2, name: 'Pizza & Burger Express', orders: 36, revenue: '₹14,200', rating: 4.6 },
-        ],
-      });
+      console.log('Error fetching live admin dashboard:', err.message);
+      setDashboardData(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -63,260 +50,576 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
     fetchDashboardStats();
   };
 
-  const renderMetricIcon = (id: string) => {
-    switch (id) {
-      case '1':
-        return <RevenueIcon color="#C2410C" size={24} />;
-      case '2':
-        return <OrdersBagIcon color="#1D4ED8" size={24} />;
-      case '3':
-        return <UserManagementIcon color="#15803D" size={24} />;
-      case '4':
-        return <AnalyticsIcon color="#7E22CE" size={24} />;
-      default:
-        return null;
-    }
-  };
+  const renderSkeleton = () => (
+    <View style={styles.container}>
+      {/* 2x2 Metric Grid Skeleton */}
+      <View style={styles.metricsContainer}>
+        <View style={styles.metricRow}>
+          <View style={styles.metricCardHalf}>
+            <SkeletonPlaceholder width={70} height={12} style={{ marginBottom: 10 }} />
+            <SkeletonPlaceholder width={60} height={22} borderRadius={6} style={{ marginBottom: 6 }} />
+            <SkeletonPlaceholder width={110} height={10} borderRadius={4} />
+          </View>
+          <View style={styles.metricCardHalf}>
+            <SkeletonPlaceholder width={70} height={12} style={{ marginBottom: 10 }} />
+            <SkeletonPlaceholder width={80} height={22} borderRadius={6} style={{ marginBottom: 6 }} />
+            <SkeletonPlaceholder width={110} height={10} borderRadius={4} />
+          </View>
+        </View>
 
-  const metricsData = [
-    { id: '1', title: 'Total Revenue', value: dashboardData?.totalRevenue || '₹45,890', color: '#FFF7ED', border: '#FFEDD5' },
-    { id: '2', title: 'Total Orders', value: dashboardData?.totalOrders || 142, color: '#EFF6FF', border: '#DBEAFE' },
-    { id: '3', title: 'Active Users', value: dashboardData?.activeUsers || 86, color: '#F0FDF4', border: '#DCFCE7' },
-    { id: '4', title: 'Conversion Rate', value: dashboardData?.convRate || '4.8%', color: '#FAF5FF', border: '#F3E8FF' },
+        <View style={styles.metricRow}>
+          <View style={styles.metricCardHalf}>
+            <SkeletonPlaceholder width={70} height={12} style={{ marginBottom: 10 }} />
+            <SkeletonPlaceholder width={50} height={22} borderRadius={6} style={{ marginBottom: 6 }} />
+            <SkeletonPlaceholder width={110} height={10} borderRadius={4} />
+          </View>
+          <View style={styles.metricCardHalf}>
+            <SkeletonPlaceholder width={70} height={12} style={{ marginBottom: 10 }} />
+            <SkeletonPlaceholder width={50} height={22} borderRadius={6} style={{ marginBottom: 6 }} />
+            <SkeletonPlaceholder width={110} height={10} borderRadius={4} />
+          </View>
+        </View>
+      </View>
+
+      {/* Chart Card Skeleton */}
+      <View style={styles.cardBox}>
+        <SkeletonPlaceholder width={160} height={16} style={{ marginBottom: 4 }} />
+        <SkeletonPlaceholder width={190} height={11} style={{ marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 100 }}>
+          <SkeletonPlaceholder width={28} height={30} borderRadius={6} />
+          <SkeletonPlaceholder width={28} height={50} borderRadius={6} />
+          <SkeletonPlaceholder width={28} height={40} borderRadius={6} />
+          <SkeletonPlaceholder width={28} height={90} borderRadius={6} />
+          <SkeletonPlaceholder width={28} height={60} borderRadius={6} />
+        </View>
+      </View>
+
+      {/* Pending Approvals Skeleton */}
+      <View style={styles.cardBox}>
+        <SkeletonPlaceholder width={180} height={16} style={{ marginBottom: 4 }} />
+        <SkeletonPlaceholder width={220} height={11} style={{ marginBottom: 16 }} />
+        {[1, 2].map((i) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <SkeletonPlaceholder width={100} height={14} />
+            <SkeletonPlaceholder width={80} height={22} borderRadius={12} />
+            <SkeletonPlaceholder width={60} height={26} borderRadius={8} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  // Live Metrics Fallbacks
+  const todayOrders = dashboardData?.totalOrdersToday !== undefined ? dashboardData.totalOrdersToday : 4;
+  const todayRevenue = dashboardData?.platformRevenueToday !== undefined
+    ? `₹${Number(dashboardData.platformRevenueToday).toLocaleString('en-IN')}`
+    : '₹3,090.56';
+  const activeRestaurants = dashboardData?.activeRestaurants !== undefined ? dashboardData.activeRestaurants : 11;
+  const activeFleet = dashboardData?.activeDeliveryPartners !== undefined ? dashboardData.activeDeliveryPartners : 2;
+
+  // Order trend fallback 7 days data
+  const orderTrend = dashboardData?.orderTrend || [
+    { label: 'Aug 26', orderCount: 2 },
+    { label: 'Aug 27', orderCount: 2 },
+    { label: 'Aug 28', orderCount: 2 },
+    { label: 'Aug 29', orderCount: 2 },
+    { label: 'Aug 30', orderCount: 2 },
+    { label: 'Aug 31', orderCount: 15 },
+    { label: 'Sep 1', orderCount: 5 },
   ];
 
-  const renderSkeleton = () => (
-    <View style={styles.listContent}>
-      <SkeletonPlaceholder width={180} height={20} style={{ marginTop: SPACING.md, marginBottom: SPACING.xs + 4 }} />
-      <View style={styles.metricsGrid}>
-        {[1, 2, 3, 4].map((i) => (
-          <View key={i} style={[styles.metricCard, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
-            <SkeletonPlaceholder width={24} height={24} borderRadius={6} style={{ marginBottom: 6 }} />
-            <SkeletonPlaceholder width={80} height={24} borderRadius={6} style={{ marginBottom: 6 }} />
-            <SkeletonPlaceholder width={60} height={12} borderRadius={4} />
-          </View>
-        ))}
-      </View>
+  const maxTrendVal = Math.max(...orderTrend.map((d: any) => d.orderCount || 1), 16);
 
-      <SkeletonPlaceholder width={160} height={20} style={{ marginTop: SPACING.md, marginBottom: SPACING.xs + 4 }} />
-      <View style={styles.quickActionsRow}>
-        <View style={styles.quickActionCard}>
-          <SkeletonPlaceholder width={32} height={32} borderRadius={16} />
-          <SkeletonPlaceholder width={100} height={14} style={{ marginTop: 6 }} />
-          <SkeletonPlaceholder width={80} height={10} style={{ marginTop: 4 }} />
-        </View>
-        <View style={styles.quickActionCard}>
-          <SkeletonPlaceholder width={32} height={32} borderRadius={16} />
-          <SkeletonPlaceholder width={100} height={14} style={{ marginTop: 6 }} />
-          <SkeletonPlaceholder width={80} height={10} style={{ marginTop: 4 }} />
-        </View>
-      </View>
+  const pendingApprovalsList = dashboardData?.pendingApprovalsList || [
+    { id: '1', name: 'Ubbblbbl', type: 'restaurant', submittedAt: '2026-08-12' },
+    { id: '2', name: 'Devakkumar', type: 'delivery_partner', submittedAt: '2026-07-29' },
+  ];
 
-      <SkeletonPlaceholder width={200} height={20} style={{ marginTop: SPACING.md, marginBottom: SPACING.xs + 4 }} />
-      {[1, 2, 3].map((i) => (
-        <View key={i} style={styles.topRestRow}>
-          <SkeletonPlaceholder width={28} height={28} borderRadius={14} />
-          <View style={{ flex: 1, gap: 6 }}>
-            <SkeletonPlaceholder width={140} height={14} />
-            <SkeletonPlaceholder width={90} height={10} />
-          </View>
-          <SkeletonPlaceholder width={50} height={16} />
-        </View>
-      ))}
-    </View>
-  );
-
-  const renderHeader = () => (
-    <View>
-      <Text style={styles.sectionHeaderTitle}>Dashboard Analytics</Text>
-      
-      {/* 2x2 Grid of Metrics */}
-      <View style={styles.metricsGrid}>
-        {metricsData.map((m) => (
-          <View key={m.id} style={[styles.metricCard, { backgroundColor: m.color, borderColor: m.border }]}>
-            <View style={{ marginBottom: 6 }}>
-              {renderMetricIcon(m.id)}
-            </View>
-            <Text style={styles.metricValue}>{m.value}</Text>
-            <Text style={styles.metricLabel}>{m.title}</Text>
-          </View>
-        ))}
-      </View>
-
-      <Text style={styles.sectionHeaderTitle}>Quick Admin Actions</Text>
-      <View style={styles.quickActionsRow}>
-        <TouchableOpacity style={styles.quickActionCard} onPress={() => onNavigateTab('approvals')}>
-          <View style={{ marginBottom: 4 }}>
-            <ApprovalsIcon color={COLORS.primary} size={26} />
-          </View>
-          <Text style={styles.quickActionTitle}>Pending Approvals</Text>
-          <Text style={styles.quickActionSub}>Review KYC & licenses</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.quickActionCard} onPress={() => onNavigateTab('users')}>
-          <View style={{ marginBottom: 4 }}>
-            <UserManagementIcon color="#2563EB" size={26} />
-          </View>
-          <Text style={styles.quickActionTitle}>User Management</Text>
-          <Text style={styles.quickActionSub}>Block/Unblock users</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, marginBottom: SPACING.xs + 2 }}>
-        <TrophyIcon color="#D97706" size={20} />
-        <Text style={styles.sectionHeaderTitleNoMargin}>Top Performing Restaurants</Text>
-      </View>
-    </View>
-  );
-
-  const renderTopRestaurantItem = ({ item, index }: { item: any; index: number }) => (
-    <View style={styles.topRestRow}>
-      <View style={styles.rankBadge}>
-        <Text style={styles.rankText}>#{item.rank || index + 1}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.topRestName}>{item.name}</Text>
-        <Text style={styles.topRestSub}>{item.orders} Orders • ⭐ {item.rating || 4.5}</Text>
-      </View>
-      <Text style={styles.topRestRevenue}>{item.revenue}</Text>
-    </View>
-  );
+  const recentActivity = dashboardData?.recentActivity || [
+    { id: 'act-1', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: new Date() },
+    { id: 'act-2', message: 'New restaurant applied: "Urban Dhaba & Grill"', type: 'application', timestamp: new Date() },
+  ];
 
   if (loading && !refreshing) {
     return renderSkeleton();
   }
 
   return (
-    <FlatList
-      data={dashboardData?.topRestaurants || []}
-      keyExtractor={(item, idx) => String(item.rank || idx)}
-      ListHeaderComponent={renderHeader}
-      renderItem={renderTopRestaurantItem}
-      contentContainerStyle={styles.listContent}
+    <ScrollView
       showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />
       }
-    />
+    >
+      {/* 🔹 1. PAGE HEADER ROW */}
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.pageTitle}>Dashboard Overview</Text>
+          <Text style={styles.pageSub}>
+            Real-time platform status, revenue growth, and merchant registration onboarding.
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} activeOpacity={0.8}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M23 4v6h-6M1 20v-6h6" />
+            <Path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+          </Svg>
+          <Text style={styles.refreshBtnText}>Refresh</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 🔹 2. TOP 4 METRIC CARDS (2x2 GRID) */}
+      <View style={styles.metricsContainer}>
+        {/* Row 1: Today's Orders & Today's Revenue */}
+        <View style={styles.metricRow}>
+          {/* Today's Orders */}
+          <View style={styles.metricCardHalf}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.metricTitle}>Today's Orders</Text>
+              <View style={[styles.iconCircle, { backgroundColor: '#EEF2FF' }]}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4F46E5" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
+                </Svg>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{todayOrders}</Text>
+            <Text style={styles.metricSub}>Orders placed since midnight</Text>
+          </View>
+
+          {/* Today's Revenue */}
+          <View style={styles.metricCardHalf}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.metricTitle}>Today's Revenue</Text>
+              <View style={[styles.iconCircle, { backgroundColor: '#ECFDF5' }]}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <Rect x="2" y="6" width="20" height="12" rx="2" />
+                  <Circle cx="12" cy="12" r="2" />
+                  <Path d="M6 12h.01M18 12h.01" />
+                </Svg>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{todayRevenue}</Text>
+            <Text style={styles.metricSub}>Net platform intake today</Text>
+          </View>
+        </View>
+
+        {/* Row 2: Active Restaurants & Delivery Fleet */}
+        <View style={styles.metricRow}>
+          {/* Active Restaurants */}
+          <View style={styles.metricCardHalf}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.metricTitle}>Active Restaurants</Text>
+              <View style={[styles.iconCircle, { backgroundColor: '#FFFBEB' }]}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                  <Path d="M9 22V12h6v10" />
+                </Svg>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{activeRestaurants}</Text>
+            <Text style={styles.metricSub}>Approved & open restaurants</Text>
+          </View>
+
+          {/* Delivery Fleet */}
+          <View style={styles.metricCardHalf}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.metricTitle}>Delivery Fleet</Text>
+              <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <Circle cx="5.5" cy="17.5" r="2.5" />
+                  <Circle cx="18.5" cy="17.5" r="2.5" />
+                  <Path d="M15 6h5l3 5v6h-2M9 17h6M5 17H3v-5l2-4h8v9" />
+                </Svg>
+              </View>
+            </View>
+            <Text style={styles.metricValue}>{activeFleet}</Text>
+            <Text style={styles.metricSub}>Active partners on shift</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 🔹 3. ORDER TREND (7 DAYS) BAR CHART */}
+      <View style={styles.cardBox}>
+        <View style={styles.cardHeaderRow}>
+          <View>
+            <Text style={styles.cardTitle}>Order Trend (7 Days)</Text>
+            <Text style={styles.cardSub}>Order volume over the past week</Text>
+          </View>
+          <View style={styles.legendPill}>
+            <View style={styles.legendDotRed} />
+            <Text style={styles.legendPillText}>Completed Orders</Text>
+          </View>
+        </View>
+
+        {/* Vertical Bar Chart */}
+        <View style={styles.chartAreaContainer}>
+          <View style={styles.yAxisLabels}>
+            <Text style={styles.axisText}>{maxTrendVal}</Text>
+            <Text style={styles.axisText}>{Math.round(maxTrendVal * 0.75)}</Text>
+            <Text style={styles.axisText}>{Math.round(maxTrendVal * 0.5)}</Text>
+            <Text style={styles.axisText}>{Math.round(maxTrendVal * 0.25)}</Text>
+            <Text style={styles.axisText}>0</Text>
+          </View>
+
+          <View style={styles.barsRow}>
+            {orderTrend.map((item: any, idx: number) => {
+              const count = item.orderCount || 0;
+              const barHeightPct = Math.max(8, Math.min(100, (count / maxTrendVal) * 100));
+
+              return (
+                <View key={idx} style={styles.singleBarCol}>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { height: `${barHeightPct}%` }]} />
+                  </View>
+                  <Text style={styles.barLabelText}>{item.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      {/* 🔹 4. PENDING APPROVALS LIST CARD */}
+      <View style={styles.cardBox}>
+        <View style={styles.cardHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Pending Approvals</Text>
+            <Text style={styles.cardSub}>
+              You have {dashboardData?.pendingApprovals || pendingApprovalsList.length} onboarding applications awaiting review
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            onPress={() => onNavigateTab('approvals')}
+          >
+            <Text style={styles.viewAllText}>View All</Text>
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M5 12h14M12 5l7 7-7 7" />
+            </Svg>
+          </TouchableOpacity>
+        </View>
+
+        {/* Applicant Table Rows */}
+        <View style={{ marginTop: 12 }}>
+          {pendingApprovalsList.map((app: any, idx: number) => {
+            const isRest = app.type === 'restaurant';
+            return (
+              <View key={idx} style={styles.applicantRow}>
+                <Text style={styles.applicantName} numberOfLines={1}>
+                  {app.name}
+                </Text>
+
+                <View style={[styles.typeBadgePill, isRest ? styles.typeRest : styles.typeRider]}>
+                  <Text style={[styles.typeBadgeText, isRest ? styles.typeRestText : styles.typeRiderText]}>
+                    {isRest ? '🏪 RESTAURANT' : '🛵 RIDER'}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.reviewBtn}
+                  onPress={() => onNavigateTab('approvals')}
+                >
+                  <Text style={styles.reviewBtnText}>Review ›</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 🔹 5. RECENT ACTIVITY CARD */}
+      <View style={styles.cardBox}>
+        <View style={styles.cardHeaderRow}>
+          <View>
+            <Text style={styles.cardTitle}>Recent Activity</Text>
+            <Text style={styles.cardSub}>Real-time actions occurring across Cravingza</Text>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 12 }}>
+          {recentActivity.map((act: any, idx: number) => (
+            <View key={idx} style={styles.activityItem}>
+              <View style={styles.actIconCircle}>
+                <Text style={{ fontSize: 14 }}>
+                  {act.type === 'order' ? '🛍️' : act.type === 'application' ? '🏪' : '🛡️'}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actMessageText}>{act.message}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  listContent: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xl,
+  container: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 40,
+    backgroundColor: '#F8FAFC',
   },
-  loadingBox: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#64748B',
-    fontSize: FONT_SIZE.xs,
-    marginTop: 10,
-  },
-  sectionHeaderTitle: {
-    fontSize: FONT_SIZE.sm + 1,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs + 2,
-  },
-  sectionHeaderTitleNoMargin: {
-    fontSize: FONT_SIZE.sm + 1,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  metricsGrid: {
+  headerRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    rowGap: 10,
-    marginBottom: SPACING.xs,
+    marginBottom: 16,
+    gap: 10,
   },
-  metricCard: {
-    width: '48.5%',
-    borderRadius: 14,
-    padding: SPACING.md,
-    borderWidth: 1,
-  },
-  metricIcon: {
+  pageTitle: {
     fontSize: 20,
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: FONT_SIZE.md + 2,
     fontWeight: '900',
     color: '#0F172A',
   },
-  metricLabel: {
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '600',
-    color: '#475569',
+  pageSub: {
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
   },
-  quickActionsRow: {
+  refreshBtn: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: SPACING.xs,
-  },
-  quickActionCard: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
-    padding: SPACING.md,
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    gap: 4,
-  },
-  quickActionTitle: {
-    fontSize: FONT_SIZE.xs + 1,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  quickActionSub: {
-    fontSize: 10,
-    color: '#64748B',
-  },
-  topRestRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
+    borderColor: '#CBD5E1',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  refreshBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  metricsContainer: {
+    marginBottom: 16,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  metricCardHalf: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 10,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
   },
-  rankBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFF7ED',
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  metricTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rankText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.primary,
+  metricValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 2,
   },
-  topRestName: {
-    fontSize: FONT_SIZE.xs + 1,
+  metricSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  cardBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  cardSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  legendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  legendDotRed: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C2410C',
+  },
+  legendPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  chartAreaContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 140,
+    marginTop: 16,
+    paddingBottom: 4,
+  },
+  yAxisLabels: {
+    height: '100%',
+    justifyContent: 'space-between',
+    paddingRight: 10,
+    alignItems: 'flex-end',
+  },
+  axisText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  barsRow: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#F1F5F9',
+    paddingLeft: 4,
+  },
+  singleBarCol: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+    flex: 1,
+  },
+  barTrack: {
+    width: 22,
+    height: '80%',
+    justifyContent: 'flex-end',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    backgroundColor: '#EA580C',
+    borderRadius: 6,
+  },
+  barLabelText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 6,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#EA580C',
+  },
+  applicantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+    gap: 8,
+  },
+  applicantName: {
+    flex: 1,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
-  topRestSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
+  typeBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  topRestRevenue: {
-    fontSize: FONT_SIZE.xs + 1,
+  typeRest: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  typeRestText: {
+    color: '#B45309',
+  },
+  typeRider: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  typeRiderText: {
+    color: '#1D4ED8',
+  },
+  typeBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  reviewBtn: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  reviewBtnText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#16A34A',
+    color: '#991B1B',
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  actIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actMessageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
   },
 });
