@@ -18,6 +18,24 @@ interface AdminDashboardTabProps {
   onNavigateTab: (tabId: string) => void;
 }
 
+const formatTime12Hour = (timestamp: any) => {
+  if (!timestamp) return '12:00 pm';
+  try {
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '12:00 pm';
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minutesStr = minutes < 10 ? `0${minutes}` : minutes;
+    const hoursStr = hours < 10 ? `0${hours}` : hours;
+    return `${hoursStr}:${minutesStr} ${ampm}`;
+  } catch (err) {
+    return '12:00 pm';
+  }
+};
+
 export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigateTab }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -331,53 +349,34 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
       {/* 🔹 5. RECENT ACTIVITY CARD */}
       <View style={styles.cardBox}>
         <View style={styles.cardHeaderRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Recent Activity Feed</Text>
+          <View>
+            <Text style={styles.cardTitle}>Recent Activity</Text>
             <Text style={styles.cardSub}>Real-time actions occurring across Cravingza</Text>
-          </View>
-          <View style={styles.livePulsePill}>
-            <View style={styles.livePulseDot} />
-            <Text style={styles.livePulseText}>LIVE</Text>
           </View>
         </View>
 
-        <View style={{ marginTop: 14, gap: 10 }}>
+        <View style={{ marginTop: 14, gap: 12 }}>
           {recentActivity.map((act: any, idx: number) => {
             const isOrder = act.type === 'order';
-            const isApp = act.type === 'application';
-
-            const bgCircle = isOrder ? '#EEF2FF' : isApp ? '#FFFBEB' : '#ECFDF5';
-            const iconColor = isOrder ? '#4F46E5' : isApp ? '#D97706' : '#10B981';
-            const tagBg = isOrder ? '#E0E7FF' : isApp ? '#FEF3C7' : '#D1FAE5';
-            const tagText = isOrder ? 'ORDER' : isApp ? 'MERCHANT' : 'SYSTEM';
+            const formattedTime = formatTime12Hour(act.timestamp);
 
             return (
-              <View key={idx} style={styles.activityCardItem}>
-                <View style={[styles.actIconCircleLarge, { backgroundColor: bgCircle }]}>
-                  {isOrder ? (
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <View key={idx} style={styles.activityRow}>
+                {/* Left Shopping Bag Icon */}
+                <View style={styles.actIconCircleWeb}>
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    {isOrder ? (
                       <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
-                    </Svg>
-                  ) : isApp ? (
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    ) : (
                       <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                      <Path d="M9 22V12h6v10" />
-                    </Svg>
-                  ) : (
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </Svg>
-                  )}
+                    )}
+                  </Svg>
                 </View>
 
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <View style={[styles.actTagPill, { backgroundColor: tagBg }]}>
-                      <Text style={[styles.actTagText, { color: iconColor }]}>{tagText}</Text>
-                    </View>
-                    <Text style={styles.actTimeText}>Just now</Text>
-                  </View>
-                  <Text style={styles.actMessageTitle}>{act.message}</Text>
+                {/* Right Card Content */}
+                <View style={styles.actContentCard}>
+                  <Text style={styles.actMessageTitleWeb}>{act.message}</Text>
+                  <Text style={styles.actTimeTextWeb}>{formattedTime}</Text>
                 </View>
               </View>
             );
@@ -633,65 +632,40 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#991B1B',
   },
-  livePulsePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  livePulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  livePulseText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#047857',
-    letterSpacing: 0.5,
-  },
-  activityCardItem: {
+  activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 12,
   },
-  actIconCircleLarge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  actIconCircleWeb: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actTagPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+  actContentCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  actTagText: {
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  actTimeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  actMessageTitle: {
-    fontSize: 12,
+  actMessageTitleWeb: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#1E293B',
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  actTimeTextWeb: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4,
   },
 });
