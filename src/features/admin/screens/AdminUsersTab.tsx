@@ -290,24 +290,9 @@ export const AdminUsersTab = () => {
             <Text style={styles.phoneText}>{item.phone || 'N/A'}</Text>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity style={styles.viewDetailsBtn} onPress={() => handleOpenUserModal(item)}>
-              <Text style={styles.viewDetailsBtnText}>View details ›</Text>
-            </TouchableOpacity>
-
-            {actionLoadingId === item._id ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
-            ) : (
-              <TouchableOpacity
-                style={[styles.blockBtn, isBlocked ? styles.unblockBtnStyle : styles.blockBtnStyle]}
-                onPress={() => handleToggleUserStatus(item._id, item.name || 'User', item.status)}
-              >
-                <Text style={[styles.blockBtnText, isBlocked ? styles.unblockText : styles.blockText]}>
-                  {isBlocked ? 'Unblock' : 'Block'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <TouchableOpacity style={styles.viewDetailsBtn} onPress={() => handleOpenUserModal(item)}>
+            <Text style={styles.viewDetailsBtnText}>View details ›</Text>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
