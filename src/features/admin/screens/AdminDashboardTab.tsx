@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -43,17 +43,42 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
   const [activityLoading, setActivityLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState<any>(null);
 
+  // 🔹 Client-side Page Cache Map for Instant 0ms Pagination Loading
+  const activityCacheRef = useRef<{ [page: number]: any }>({});
+
   const fetchDashboardStats = async (page: number = 1, isSilentPageChange: boolean = false) => {
     try {
       if (isSilentPageChange) {
-        setActivityLoading(true);
+        if (activityCacheRef.current[page]) {
+          // Instant Cache Hit - zero lag!
+          const cached = activityCacheRef.current[page];
+          setDashboardData((prev: any) => ({
+            ...prev,
+            recentActivity: cached.recentActivity,
+            activityPagination: cached.activityPagination,
+          }));
+          setActivityPage(page);
+          setActivityLoading(false);
+        } else {
+          setActivityLoading(true);
+        }
       } else {
         setLoading(true);
       }
+
       const res = await getAdminDashboardApi(page, 7);
       if (res && (res.data || res.success)) {
-        setDashboardData(res.data || res);
+        const data = res.data || res;
+        setDashboardData(data);
         setActivityPage(page);
+
+        // Store page in memory cache
+        if (data.recentActivity && data.activityPagination) {
+          activityCacheRef.current[page] = {
+            recentActivity: data.recentActivity,
+            activityPagination: data.activityPagination,
+          };
+        }
       } else {
         setDashboardData(null);
       }
@@ -72,6 +97,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
   }, []);
 
   const handleRefresh = () => {
+    activityCacheRef.current = {};
     setRefreshing(true);
     fetchDashboardStats(activityPage);
   };
@@ -382,8 +408,16 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
         </View>
 
         {activityLoading ? (
-          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-            <ActivityIndicator size="small" color="#EA580C" />
+          <View style={{ marginTop: 14, gap: 12 }}>
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <View key={i} style={styles.activityRow}>
+                <SkeletonPlaceholder width={42} height={42} borderRadius={21} />
+                <View style={styles.actContentCard}>
+                  <SkeletonPlaceholder width={220} height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <SkeletonPlaceholder width={70} height={10} borderRadius={4} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : (
           <View style={{ marginTop: 14, gap: 12 }}>
