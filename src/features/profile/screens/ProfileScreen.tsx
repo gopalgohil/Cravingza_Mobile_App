@@ -441,23 +441,57 @@ export const ProfileScreen = ({ navigation }: any) => {
               </Text>
             </View>
 
-            {(role === 'restaurant_owner' || role === 'owner') && (
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#EA580C',
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  marginTop: 10,
-                  alignItems: 'center',
-                }}
-                onPress={() => navigation.navigate('RestaurantOwnerLayout')}
-              >
-                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>
-                  Open Restaurant Admin Portal →
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* 🔹 DYNAMIC PORTAL SWITCH BANNER FOR SPECIAL ROLES (ADMIN, OWNER, RIDER) */}
+            {(() => {
+              const currentRole = (role || currentUser?.role || '').toLowerCase();
+              const isAdmin = currentRole === 'admin' || currentRole === 'superadmin';
+              const isOwner = currentRole === 'restaurant_owner' || currentRole === 'owner';
+              const isRider = currentRole === 'delivery_partner' || currentRole === 'delivery';
+
+              if (!isAdmin && !isOwner && !isRider) return null;
+
+              const bannerTitle = isAdmin
+                ? 'Admin Console'
+                : isRider
+                  ? 'Delivery Partner Console'
+                  : 'Restaurant Owner Console';
+
+              const bannerSub = isAdmin
+                ? 'Switch back to Super Admin Dashboard'
+                : isRider
+                  ? 'Switch back to Delivery Partner Portal'
+                  : 'Switch back to Restaurant Admin Dashboard';
+
+              const bannerIcon = isAdmin ? '🛡️' : isRider ? '🚴' : '🏪';
+              const targetRoute = isAdmin
+                ? 'AdminLayout'
+                : isRider
+                  ? 'DeliveryPartnerLayout'
+                  : 'RestaurantOwnerLayout';
+
+              return (
+                <TouchableOpacity
+                  style={styles.portalSwitchBanner}
+                  onPress={() => navigation.navigate(targetRoute)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.portalSwitchLeft}>
+                    <View style={styles.portalSwitchIconBadge}>
+                      <Text style={{ fontSize: 18 }}>{bannerIcon}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.portalSwitchTitle}>{bannerTitle}</Text>
+                      <Text style={styles.portalSwitchSub} numberOfLines={1}>
+                        {bannerSub}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.portalSwitchArrowCircle}>
+                    <Text style={styles.portalSwitchArrowText}>→</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
 
           {/* Profile Form Details Section */}
@@ -1201,5 +1235,60 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFF',
+  },
+  portalSwitchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1.5,
+    borderColor: '#FFEDD5',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
+    width: '100%',
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  portalSwitchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  portalSwitchIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portalSwitchTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#9A3412',
+  },
+  portalSwitchSub: {
+    fontSize: 11,
+    color: '#C2410C',
+    marginTop: 1,
+  },
+  portalSwitchArrowCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  portalSwitchArrowText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
