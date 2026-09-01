@@ -1,8 +1,8 @@
 import { apiClient } from '../../../services/apiClient';
 
-// 1. Get Super Admin Dashboard Analytics -> GET /api/admin/dashboard
-export const getAdminDashboardApi = async () => {
-  return await apiClient('/admin/dashboard');
+// 1. Get Super Admin Dashboard Analytics -> GET /api/admin/dashboard?activityPage=1&activityLimit=7
+export const getAdminDashboardApi = async (activityPage: number = 1, activityLimit: number = 7) => {
+  return await apiClient(`/admin/dashboard?activityPage=${activityPage}&activityLimit=${activityLimit}`);
 };
 
 // 2. Get All Restaurant Applications -> GET /api/admin/restaurants?status=all

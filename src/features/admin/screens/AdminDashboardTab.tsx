@@ -39,14 +39,21 @@ const formatTime12Hour = (timestamp: any) => {
 export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigateTab }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState<any>(null);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = async (page: number = 1, isSilentPageChange: boolean = false) => {
     try {
-      setLoading(true);
-      const res = await getAdminDashboardApi();
+      if (isSilentPageChange) {
+        setActivityLoading(true);
+      } else {
+        setLoading(true);
+      }
+      const res = await getAdminDashboardApi(page, 7);
       if (res && (res.data || res.success)) {
         setDashboardData(res.data || res);
+        setActivityPage(page);
       } else {
         setDashboardData(null);
       }
@@ -56,16 +63,17 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setActivityLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardStats();
+    fetchDashboardStats(1);
   }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchDashboardStats();
+    fetchDashboardStats(activityPage);
   };
 
   const renderSkeleton = () => (
@@ -346,41 +354,82 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
         </View>
       </View>
 
-      {/* 🔹 5. RECENT ACTIVITY CARD */}
+      {/* 🔹 5. RECENT ACTIVITY CARD WITH BACKEND PAGINATION (7 PER PAGE) */}
       <View style={styles.cardBox}>
         <View style={styles.cardHeaderRow}>
           <View>
             <Text style={styles.cardTitle}>Recent Activity</Text>
-            <Text style={styles.cardSub}>Real-time actions occurring across Cravingza</Text>
+            <Text style={styles.cardSub}>Real-time actions occurring across Cravingza (7 items per page)</Text>
           </View>
         </View>
 
-        <View style={{ marginTop: 14, gap: 12 }}>
-          {recentActivity.map((act: any, idx: number) => {
-            const isOrder = act.type === 'order';
-            const formattedTime = formatTime12Hour(act.timestamp);
+        {activityLoading ? (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#EA580C" />
+          </View>
+        ) : (
+          <View style={{ marginTop: 14, gap: 12 }}>
+            {recentActivity.map((act: any, idx: number) => {
+              const isOrder = act.type === 'order';
+              const formattedTime = formatTime12Hour(act.timestamp);
 
-            return (
-              <View key={idx} style={styles.activityRow}>
-                {/* Left Shopping Bag Icon */}
-                <View style={styles.actIconCircleWeb}>
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                    {isOrder ? (
-                      <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
-                    ) : (
-                      <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                    )}
-                  </Svg>
-                </View>
+              return (
+                <View key={idx} style={styles.activityRow}>
+                  {/* Left Shopping Bag Icon */}
+                  <View style={styles.actIconCircleWeb}>
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                      {isOrder ? (
+                        <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
+                      ) : (
+                        <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                      )}
+                    </Svg>
+                  </View>
 
-                {/* Right Card Content */}
-                <View style={styles.actContentCard}>
-                  <Text style={styles.actMessageTitleWeb}>{act.message}</Text>
-                  <Text style={styles.actTimeTextWeb}>{formattedTime}</Text>
+                  {/* Right Card Content */}
+                  <View style={styles.actContentCard}>
+                    <Text style={styles.actMessageTitleWeb}>{act.message}</Text>
+                    <Text style={styles.actTimeTextWeb}>{formattedTime}</Text>
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </View>
+        )}
+
+        {/* 🔹 Backend Pagination Controls */}
+        <View style={styles.paginationRow}>
+          <TouchableOpacity
+            style={[styles.pageBtn, (activityPage <= 1 || activityLoading) && styles.pageBtnDisabled]}
+            disabled={activityPage <= 1 || activityLoading}
+            onPress={() => fetchDashboardStats(activityPage - 1, true)}
+          >
+            <Text style={[styles.pageBtnText, (activityPage <= 1 || activityLoading) && styles.pageBtnTextDisabled]}>
+              ‹ Previous
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.pageIndicatorText}>
+            Page {dashboardData?.activityPagination?.page || activityPage} of {dashboardData?.activityPagination?.totalPages || 1}
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.pageBtn,
+              (!dashboardData?.activityPagination?.hasNextPage || activityLoading) && styles.pageBtnDisabled,
+            ]}
+            disabled={!dashboardData?.activityPagination?.hasNextPage || activityLoading}
+            onPress={() => fetchDashboardStats(activityPage + 1, true)}
+          >
+            <Text
+              style={[
+                styles.pageBtnText,
+                (!dashboardData?.activityPagination?.hasNextPage || activityLoading) && styles.pageBtnTextDisabled,
+              ]}
+            >
+              Next ›
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -667,5 +716,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748B',
     marginTop: 4,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  pageBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  pageBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  pageBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EA580C',
+  },
+  pageBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  pageIndicatorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
   },
 });
