@@ -211,8 +211,8 @@ export const AdminUsersTab = () => {
 
     return (
       <View style={{ marginTop: SPACING.sm }}>
-        {/* Filter Chips */}
-        <View style={styles.filterBar}>
+        {/* Horizontally Scrollable Filter Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
           {filters.map((f) => (
             <TouchableOpacity
               key={f.id}
@@ -224,7 +224,7 @@ export const AdminUsersTab = () => {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
     );
   };
@@ -506,6 +506,7 @@ const styles = StyleSheet.create({
   filterBar: {
     flexDirection: 'row',
     gap: 8,
+    paddingRight: SPACING.md,
     marginBottom: SPACING.md,
   },
   filterChip: {
