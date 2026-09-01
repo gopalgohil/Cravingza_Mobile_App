@@ -46,8 +46,8 @@ export const rejectDeliveryPartnerApi = async (id: string, reason?: string) => {
 };
 
 // 8. Get Platform Users by Role -> GET /api/admin/users?role=customer|owner|delivery
-export const getAdminUsersApi = async (role: string = 'customer') => {
-  return await apiClient(`/admin/users?role=${role}`);
+export const getAdminUsersApi = async (role: string = 'customer', limit: number = 100) => {
+  return await apiClient(`/admin/users?role=${role}&limit=${limit}`);
 };
 
 // 9. Update User Account Status (Block/Unblock) -> PATCH /api/admin/users/:id/status

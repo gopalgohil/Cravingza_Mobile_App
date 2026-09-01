@@ -13,12 +13,14 @@ import {
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
+import { getAdminUsersApi, updateUserStatusApi } from '../services/adminApi';
 
 export const AdminUsersTab = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'customer' | 'owner' | 'delivery'>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [counts, setCounts] = useState<{ customer?: number; owner?: number; delivery?: number; total?: number }>({});
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
@@ -29,6 +31,9 @@ export const AdminUsersTab = () => {
         try {
           const res = await getAdminUsersApi('all');
           const list = res?.data?.users || res?.users || (Array.isArray(res?.data) ? res.data : null);
+          if (res?.data?.counts) {
+            setCounts(res.data.counts);
+          }
           if (Array.isArray(list) && list.length > 0) {
             setUsers(list);
             setLoading(false);
@@ -49,6 +54,17 @@ export const AdminUsersTab = () => {
         const ownerUsers = resOwner?.data?.users || resOwner?.users || (Array.isArray(resOwner?.data) ? resOwner.data : []);
         const delUsers = resDel?.data?.users || resDel?.users || (Array.isArray(resDel?.data) ? resDel.data : []);
 
+        const custCount = resCust?.data?.totalCount || (Array.isArray(custUsers) ? custUsers.length : 0);
+        const ownerCount = resOwner?.data?.totalCount || (Array.isArray(ownerUsers) ? ownerUsers.length : 0);
+        const delCount = resDel?.data?.totalCount || (Array.isArray(delUsers) ? delUsers.length : 0);
+
+        setCounts({
+          customer: custCount,
+          owner: ownerCount,
+          delivery: delCount,
+          total: custCount + ownerCount + delCount,
+        });
+
         const combined = [
           ...(Array.isArray(custUsers) ? custUsers : []),
           ...(Array.isArray(ownerUsers) ? ownerUsers : []),
@@ -59,6 +75,9 @@ export const AdminUsersTab = () => {
         const targetRole = activeFilter === 'owner' ? 'owner' : activeFilter === 'delivery' ? 'delivery' : 'customer';
         const res = await getAdminUsersApi(targetRole);
         const list = res?.data?.users || res?.users || (Array.isArray(res?.data) ? res.data : []);
+        if (res?.data?.counts) {
+          setCounts(res.data.counts);
+        }
         setUsers(Array.isArray(list) ? list : []);
       }
     } catch (err: any) {
@@ -136,29 +155,35 @@ export const AdminUsersTab = () => {
     </View>
   );
 
-  const renderHeader = () => (
-    <View style={{ marginTop: SPACING.sm }}>
-      {/* Filter Chips */}
-      <View style={styles.filterBar}>
-        {[
-          { id: 'all', label: 'All Users' },
-          { id: 'customer', label: 'Customers' },
-          { id: 'owner', label: 'Owners' },
-          { id: 'delivery', label: 'Riders' },
-        ].map((f) => (
-          <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, activeFilter === f.id && styles.filterChipActive]}
-            onPress={() => setActiveFilter(f.id as any)}
-          >
-            <Text style={[styles.filterChipText, activeFilter === f.id && styles.filterChipTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+  const renderHeader = () => {
+    const totalCount = counts.total || (counts.customer || 0) + (counts.owner || 0) + (counts.delivery || 0);
+
+    const filters = [
+      { id: 'all', label: 'All Users', count: totalCount || users.length },
+      { id: 'customer', label: 'Customers', count: counts.customer },
+      { id: 'owner', label: 'Owners', count: counts.owner },
+      { id: 'delivery', label: 'Riders', count: counts.delivery },
+    ];
+
+    return (
+      <View style={{ marginTop: SPACING.sm }}>
+        {/* Filter Chips */}
+        <View style={styles.filterBar}>
+          {filters.map((f) => (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, activeFilter === f.id && styles.filterChipActive]}
+              onPress={() => setActiveFilter(f.id as any)}
+            >
+              <Text style={[styles.filterChipText, activeFilter === f.id && styles.filterChipTextActive]}>
+                {f.label}{f.count !== undefined && f.count !== null ? ` (${f.count})` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderUserItem = ({ item }: { item: any }) => {
     const isBlocked = item.status === 'blocked';
