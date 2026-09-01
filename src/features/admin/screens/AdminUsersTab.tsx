@@ -25,31 +25,12 @@ export const AdminUsersTab = () => {
     try {
       setLoading(true);
       console.log('Fetching live MongoDB Users API for role filter:', activeFilter);
-      if (activeFilter === 'all') {
-        const [resCust, resOwner, resDel] = await Promise.all([
-          getAdminUsersApi('customer').catch(() => null),
-          getAdminUsersApi('owner').catch(() => null),
-          getAdminUsersApi('delivery').catch(() => null),
-        ]);
-
-        const custUsers = resCust?.data?.users || resCust?.users || resCust?.data || [];
-        const ownerUsers = resOwner?.data?.users || resOwner?.users || resOwner?.data || [];
-        const delUsers = resDel?.data?.users || resDel?.users || resDel?.data || [];
-
-        const combined = [
-          ...(Array.isArray(custUsers) ? custUsers : []),
-          ...(Array.isArray(ownerUsers) ? ownerUsers : []),
-          ...(Array.isArray(delUsers) ? delUsers : []),
-        ];
-        setUsers(combined);
-      } else {
-        const targetRole = activeFilter === 'owner' ? 'owner' : activeFilter === 'delivery' ? 'delivery' : 'customer';
-        const res = await getAdminUsersApi(targetRole);
-        const list = res?.data?.users || res?.users || res?.data || (Array.isArray(res) ? res : []);
-        setUsers(Array.isArray(list) ? list : []);
-      }
+      const res = await getAdminUsersApi(activeFilter);
+      const list = res?.data?.users || res?.users || res?.data || (Array.isArray(res) ? res : []);
+      setUsers(Array.isArray(list) ? list : []);
     } catch (err: any) {
       console.log('Error fetching users:', err.message);
+      setUsers([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
