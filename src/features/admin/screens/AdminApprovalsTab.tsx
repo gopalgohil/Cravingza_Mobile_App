@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -22,6 +23,8 @@ import {
   getAdminDeliveryProfilesApi,
   approveDeliveryPartnerApi,
   rejectDeliveryPartnerApi,
+  deactivateRestaurantApi,
+  reactivateRestaurantApi,
 } from '../services/adminApi';
 
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
@@ -71,6 +74,73 @@ export const AdminApprovalsTab = () => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedTitle, setSelectedTitle] = useState<string>('Document View');
+
+  // Deactivate Modal state matching reference design
+  const [deactivateModalVisible, setDeactivateModalVisible] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState('');
+  const [suspendOwner, setSuspendOwner] = useState(false);
+  const [deactivatingLoading, setDeactivatingLoading] = useState(false);
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivationReason.trim()) {
+      Alert.alert('Validation Error ⚠️', 'Deactivation reason is required.');
+      return;
+    }
+
+    try {
+      setDeactivatingLoading(true);
+      const res = await deactivateRestaurantApi(
+        selectedApplication._id,
+        deactivationReason.trim(),
+        suspendOwner
+      );
+
+      const updated = res?.data || {
+        ...selectedApplication,
+        adminDeactivated: true,
+        deactivationReason: deactivationReason.trim(),
+        deactivatedAt: new Date(),
+      };
+
+      setSelectedApplication(updated);
+      setDeactivateModalVisible(false);
+      Alert.alert('Restaurant Deactivated 🚫', `"${selectedApplication?.name || 'Restaurant'}" has been deactivated and hidden from customer apps.`);
+      fetchApplications();
+    } catch (err: any) {
+      Alert.alert('Deactivation Failed ❌', err?.message || 'Failed to deactivate restaurant.');
+    } finally {
+      setDeactivatingLoading(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    Alert.alert('Reactivate Restaurant', `Are you sure you want to reactivate "${selectedApplication?.name || 'Restaurant'}"? It will be visible to customers again.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reactivate',
+        style: 'default',
+        onPress: async () => {
+          try {
+            setActionLoadingId(selectedApplication._id);
+            const res = await reactivateRestaurantApi(selectedApplication._id);
+            const updated = res?.data || {
+              ...selectedApplication,
+              adminDeactivated: false,
+              deactivationReason: null,
+              deactivatedAt: null,
+            };
+            setSelectedApplication(updated);
+            Alert.alert('Restaurant Reactivated 🎉', `"${selectedApplication?.name || 'Restaurant'}" is now reactivated and visible to customers!`);
+            fetchApplications();
+          } catch (err: any) {
+            Alert.alert('Reactivation Failed ❌', err?.message || 'Failed to reactivate restaurant.');
+          } finally {
+            setActionLoadingId(null);
+          }
+        },
+      },
+    ]);
+  };
 
   const fetchApplications = async () => {
     try {
@@ -179,6 +249,7 @@ export const AdminApprovalsTab = () => {
   const renderRestaurantItem = ({ item }: { item: any }) => {
     const isApproved = item.approvalStatus === 'approved';
     const isRejected = item.approvalStatus === 'rejected';
+    const isDeactivated = item.adminDeactivated === true;
 
     const ownerName = item.ownerName || item.owner?.name || item.name || item.user?.name || 'Partner Owner';
     const city = item.city || item.location?.city || 'Vadodara';
@@ -196,9 +267,23 @@ export const AdminApprovalsTab = () => {
         {/* Top Header Row: Restaurant Name & Status Badge */}
         <View style={styles.cardHeaderRow}>
           <Text style={styles.itemTitle} numberOfLines={1}>{item.name || 'Restaurant Application'}</Text>
-          <View style={[styles.statusBadge, isApproved && styles.statusBadgeApproved, isRejected && styles.statusBadgeRejected]}>
-            <Text style={[styles.statusText, isApproved && styles.statusTextApproved, isRejected && styles.statusTextRejected]}>
-              {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
+          <View
+            style={[
+              styles.statusBadge,
+              isApproved && !isDeactivated && styles.statusBadgeApproved,
+              isRejected && styles.statusBadgeRejected,
+              isDeactivated && styles.statusBadgeDeactivated,
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                isApproved && !isDeactivated && styles.statusTextApproved,
+                isRejected && styles.statusTextRejected,
+                isDeactivated && styles.statusTextDeactivated,
+              ]}
+            >
+              {isDeactivated ? 'Deactivated' : isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
             </Text>
           </View>
         </View>
@@ -573,13 +658,74 @@ export const AdminApprovalsTab = () => {
                 </>
               )}
 
-              {/* Action Buttons / Status Banners Footer */}
+              {/* Action Buttons / Status Banners / Deactivation Footer */}
               {actionLoadingId === selectedApplication?._id ? (
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
               ) : selectedApplication?.approvalStatus === 'approved' ? (
-                <View style={styles.approvedStatusBanner}>
-                  <Text style={styles.approvedStatusText}>✓ Application Approved & Verified Partner</Text>
-                </View>
+                activeSubTab === 'restaurant' ? (
+                  selectedApplication?.adminDeactivated ? (
+                    <View style={{ marginTop: 16 }}>
+                      {/* Image 3: Deactivated Red Card Banner */}
+                      <View style={styles.deactivatedCardBanner}>
+                        <View style={styles.deactivatedHeaderRow}>
+                          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#BE123C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                            <Circle cx="12" cy="12" r="10" />
+                            <Path d="M4.93 4.93l14.14 14.14" />
+                          </Svg>
+                          <Text style={styles.deactivatedTitleText}>Restaurant Deactivated</Text>
+                        </View>
+                        <Text style={styles.deactivatedSubText}>
+                          Deactivated on {selectedApplication?.deactivatedAt ? new Date(selectedApplication.deactivatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '01 Sept 2026'}.
+                        </Text>
+                        {selectedApplication?.deactivationReason ? (
+                          <View style={styles.reasonBoxContainer}>
+                            <Text style={styles.reasonItalicText}>Reason: "{selectedApplication.deactivationReason}"</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {/* Image 3: Reactivate Button */}
+                      <TouchableOpacity
+                        style={styles.btnReactivateOutline}
+                        activeOpacity={0.8}
+                        onPress={handleReactivate}
+                      >
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+                          <Path d="M23 4v6h-6M1 20v-6h6" />
+                          <Path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                        </Svg>
+                        <Text style={styles.btnReactivateText}>Reactivate Restaurant</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={{ marginTop: 16 }}>
+                      <View style={styles.approvedStatusBanner}>
+                        <Text style={styles.approvedStatusText}>✓ Application Approved & Verified Partner</Text>
+                      </View>
+
+                      {/* Image 1: Deactivate Restaurant Button */}
+                      <TouchableOpacity
+                        style={styles.btnDeactivateOutline}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          setDeactivationReason('');
+                          setSuspendOwner(false);
+                          setDeactivateModalVisible(true);
+                        }}
+                      >
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#BE123C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+                          <Circle cx="12" cy="12" r="10" />
+                          <Path d="M4.93 4.93l14.14 14.14" />
+                        </Svg>
+                        <Text style={styles.btnDeactivateText}>Deactivate Restaurant</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
+                ) : (
+                  <View style={styles.approvedStatusBanner}>
+                    <Text style={styles.approvedStatusText}>✓ Application Approved & Verified Partner</Text>
+                  </View>
+                )
               ) : selectedApplication?.approvalStatus === 'rejected' ? (
                 <View style={styles.rejectedStatusBanner}>
                   <Text style={styles.rejectedStatusText}>✕ Application Rejected</Text>
@@ -612,6 +758,61 @@ export const AdminApprovalsTab = () => {
                 </View>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🌟 3. DEACTIVATE RESTAURANT MODAL DIALOG (Matching uploaded Image 2) */}
+      <Modal visible={deactivateModalVisible} transparent animationType="fade">
+        <View style={styles.deactivateOverlay}>
+          <View style={styles.deactivateDialogCard}>
+            <Text style={styles.deactivateDialogTitle}>Deactivate Restaurant</Text>
+            <Text style={styles.deactivateDialogSub}>
+              Deactivating <Text style={{ fontWeight: '700', color: '#0F172A' }}>"{selectedApplication?.name || selectedApplication?.restaurantName || 'Restaurant'}"</Text> will make it immediately hidden from customers on Cravingza.
+            </Text>
+
+            <Text style={styles.deactivateReasonLabel}>DEACTIVATION REASON (REQUIRED)</Text>
+            <TextInput
+              style={styles.deactivateInputArea}
+              multiline
+              numberOfLines={3}
+              placeholder="e.g. Health safety compliance violation or temporary business closure."
+              placeholderTextColor="#94A3B8"
+              value={deactivationReason}
+              onChangeText={setDeactivationReason}
+            />
+
+            <TouchableOpacity
+              style={styles.checkboxRowContainer}
+              activeOpacity={0.8}
+              onPress={() => setSuspendOwner(!suspendOwner)}
+            >
+              <View style={[styles.checkboxBox, suspendOwner && styles.checkboxBoxChecked]}>
+                {suspendOwner && <Text style={styles.checkmarkText}>✓</Text>}
+              </View>
+              <Text style={styles.checkboxLabelText}>Also suspend the restaurant owner's account</Text>
+            </TouchableOpacity>
+
+            <View style={styles.deactivateBtnRow}>
+              <TouchableOpacity
+                style={styles.btnCancelDialog}
+                onPress={() => setDeactivateModalVisible(false)}
+              >
+                <Text style={styles.btnCancelDialogText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.btnConfirmDeactivate, deactivatingLoading && { opacity: 0.7 }]}
+                disabled={deactivatingLoading}
+                onPress={handleConfirmDeactivate}
+              >
+                {deactivatingLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.btnConfirmDeactivateText}>Deactivate</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1082,5 +1283,200 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#B91C1C',
+  },
+  statusBadgeDeactivated: {
+    backgroundColor: '#FFE4E6',
+    borderColor: '#FECDD3',
+  },
+  statusTextDeactivated: {
+    color: '#BE123C',
+  },
+
+  // Image 1: Deactivate Button
+  btnDeactivateOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    borderRadius: 24,
+    paddingVertical: 13,
+    marginTop: 12,
+  },
+  btnDeactivateText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#BE123C',
+  },
+
+  // Image 3: Deactivated Card Banner & Reactivate Button
+  deactivatedCardBanner: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FFE4E6',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+  },
+  deactivatedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  deactivatedTitleText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#9F1239',
+  },
+  deactivatedSubText: {
+    fontSize: 13,
+    color: '#BE123C',
+    fontWeight: '500',
+  },
+  reasonBoxContainer: {
+    backgroundColor: '#FFE4E6',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  reasonItalicText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    fontWeight: '700',
+    color: '#9F1239',
+  },
+  btnReactivateOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    borderRadius: 24,
+    paddingVertical: 13,
+    marginTop: 14,
+  },
+  btnReactivateText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#059669',
+  },
+
+  // Image 2: Deactivate Modal Dialog
+  deactivateOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  deactivateDialogCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  deactivateDialogTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  deactivateDialogSub: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  deactivateReasonLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  deactivateInputArea: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 13,
+    color: '#0F172A',
+    backgroundColor: '#FFFFFF',
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 14,
+  },
+  checkboxRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxBoxChecked: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+  },
+  checkmarkText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  checkboxLabelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+    flex: 1,
+  },
+  deactivateBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  btnCancelDialog: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  btnCancelDialogText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  btnConfirmDeactivate: {
+    flex: 1,
+    backgroundColor: '#FB7185',
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  btnConfirmDeactivateText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

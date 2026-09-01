@@ -83,3 +83,18 @@ export const updateAdminPasswordApi = async (payload: { currentPassword: string;
     body: JSON.stringify(payload),
   });
 };
+
+// 14. Deactivate Restaurant -> PATCH /api/admin/restaurants/:id/deactivate
+export const deactivateRestaurantApi = async (id: string, reason: string, suspendOwner: boolean = false) => {
+  return await apiClient(`/admin/restaurants/${id}/deactivate`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason, suspendOwner }),
+  });
+};
+
+// 15. Reactivate Restaurant -> PATCH /api/admin/restaurants/:id/reactivate
+export const reactivateRestaurantApi = async (id: string) => {
+  return await apiClient(`/admin/restaurants/${id}/reactivate`, {
+    method: 'PATCH',
+  });
+};
