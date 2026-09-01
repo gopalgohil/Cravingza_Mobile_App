@@ -90,52 +90,9 @@ export const LoginScreen = ({ navigation }: any) => {
       }
     } catch (error: any) {
       console.log('Login Error:', error.message);
-
-      // 🔹 Smart Dev/Demo Fallback Login for Rider / Admin / Owner accounts
-      const lowerEmail = trimmedEmail.toLowerCase();
-      const dynamicName = trimmedEmail.split('@')[0];
-      const formattedName = dynamicName.charAt(0).toUpperCase() + dynamicName.slice(1);
-
-      if (lowerEmail.includes('delivery') || lowerEmail.includes('rider')) {
-        const dummyRider = {
-          name: formattedName || 'Delivery Partner',
-          email: trimmedEmail,
-          phone: '+919876543210',
-          role: 'delivery_partner',
-        };
-        setAuthUser(dummyRider, 'token_rider_dev');
-        Alert.alert('Welcome Partner! 🚴', 'Logged in to Delivery Hero Portal');
-        navigation.replace('DeliveryPartnerLayout');
-        return;
-      }
-
-      if (lowerEmail.includes('owner') || lowerEmail.includes('restaurant')) {
-        const dummyOwner = {
-          name: `${formattedName} (Restaurant Owner)`,
-          email: trimmedEmail,
-          phone: '+919876543210',
-          role: 'restaurant_owner',
-          restaurantName: `${formattedName}'s Kitchen`,
-        };
-        setAuthUser(dummyOwner, 'token_owner_dev');
-        Alert.alert(`Welcome ${formattedName}! 🏪`, 'Logged in as Restaurant Owner');
-        navigation.replace('RestaurantOwnerLayout');
-        return;
-      }
-
-      if (lowerEmail.includes('admin')) {
-        const dummyAdmin = {
-          name: 'Super Admin',
-          email: trimmedEmail,
-          role: 'admin',
-        };
-        setAuthUser(dummyAdmin, 'token_admin_dev');
-        Alert.alert('Welcome Admin! 🛡️', 'Logged in to Super Admin Portal');
-        navigation.replace('AdminLayout');
-        return;
-      }
-
-      setLoginError(error.message || 'Invalid email or password.');
+      const errMsg = error?.message || 'Incorrect email or password. Please try again.';
+      setLoginError(errMsg);
+      Alert.alert('Login Failed ❌', errMsg);
     } finally {
       setLoading(false);
     }
