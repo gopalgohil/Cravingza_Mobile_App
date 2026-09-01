@@ -58,9 +58,15 @@ export const OwnerSettingsTab: React.FC = () => {
 
       if (rest) {
         if (rest.name || rest.restaurantName) setRestaurantName(rest.name || rest.restaurantName);
-        if (rest.cuisine) setCuisine(rest.cuisine);
-        if (rest.phone || rest.contactPhone) setPhone(rest.phone || rest.contactPhone);
-        if (rest.email || rest.ownerEmail) setEmail(rest.email || rest.ownerEmail);
+        if (rest.cuisineTags || rest.cuisine) {
+          setCuisine(Array.isArray(rest.cuisineTags) ? rest.cuisineTags.join(', ') : rest.cuisine || '');
+        }
+        if (rest.phone || rest.contactPhone || rest.ownerPhone || currentUser?.phone) {
+          setPhone(rest.phone || rest.contactPhone || rest.ownerPhone || currentUser?.phone || '');
+        }
+        if (rest.email || rest.ownerEmail || currentUser?.email) {
+          setEmail(rest.email || rest.ownerEmail || currentUser?.email || '');
+        }
         if (rest.location?.address || rest.address) setAddress(rest.location?.address || rest.address);
         if (rest.location?.city || rest.city) setCity(rest.location?.city || rest.city);
         if (rest.location?.zipCode || rest.location?.pincode || rest.pincode || rest.zipCode) {
@@ -96,8 +102,8 @@ export const OwnerSettingsTab: React.FC = () => {
       Alert.alert(
         val ? 'Store Opened! 🟢' : 'Store Closed 🔴',
         val
-          ? 'Burger Boss is now OPEN and accepting online customer orders.'
-          : 'Burger Boss is now CLOSED for new incoming orders.'
+          ? `${restaurantName} is now OPEN and accepting online customer orders.`
+          : `${restaurantName} is now CLOSED for new incoming orders.`
       );
     } catch (e) {}
   };

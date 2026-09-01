@@ -228,9 +228,15 @@ export const HomeScreen = ({ navigation }: any) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // 🔹 Fetch Live Data from Render Backend API when Debounced Query Changes
+  // 🔹 Fetch Live Data & Auto-Poll every 4 seconds for Live Open/Close Sync
   useEffect(() => {
     loadLiveRestaurants(debouncedQuery);
+
+    const intervalId = setInterval(() => {
+      loadLiveRestaurants(debouncedQuery);
+    }, 4000);
+
+    return () => clearInterval(intervalId);
   }, [debouncedQuery]);
 
   const loadLiveRestaurants = async (search?: string) => {
@@ -278,24 +284,16 @@ export const HomeScreen = ({ navigation }: any) => {
             item.name?.toLowerCase().includes('biryani') ||
             item.name?.toLowerCase().includes('indian') ||
             item.restaurant?.toLowerCase().includes('biryani') ||
-            item.restaurant?.toLowerCase().includes('mahal') ||
-            (Array.isArray(item.cuisine) &&
-              item.cuisine.some((c: string) =>
-                ['indian', 'biryani', 'curry'].includes(c.toLowerCase())
-              ));
+            item.restaurant?.toLowerCase().includes('indian') ||
+            item.cuisineTags?.some((tag: string) => tag.toLowerCase().includes('indian') || tag.toLowerCase().includes('biryani'));
           if (isIndianFood) return true;
         }
-
-        const catMatch = item.category && item.category.toLowerCase().includes(query);
-        const nameMatch = item.name && item.name.toLowerCase().includes(query);
-        const restMatch = item.restaurant && item.restaurant.toLowerCase().includes(query);
-        const cuisineMatch =
-          Array.isArray(item.cuisine) &&
-          item.cuisine.some(
-            (c: string) => c.toLowerCase().includes(query) || query.includes(c.toLowerCase())
-          );
-
-        return catMatch || nameMatch || restMatch || cuisineMatch;
+        return (
+          item.category?.toLowerCase().includes(query) ||
+          item.name?.toLowerCase().includes(query) ||
+          item.restaurant?.toLowerCase().includes(query) ||
+          (Array.isArray(item.cuisineTags) && item.cuisineTags.some((tag: string) => tag.toLowerCase().includes(query)))
+        );
       });
 
   const renderHeader = React.useCallback(
@@ -392,55 +390,82 @@ export const HomeScreen = ({ navigation }: any) => {
     [selectedCategory, navigation]
   );
 
-  const renderRestaurantCard = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      key={item._id || item.id}
-      style={styles.heroCardContainer}
-      activeOpacity={0.9}
-      onPress={() =>
-        navigation.navigate('RestaurantDetail', {
-          restaurantId: item._id || item.id,
-          restaurantName: item.name || item.restaurant,
-          coverImage: item.image || item.coverImage,
-        })
-      }
-    >
-      {/* 16:9 Cover Image with Floating Badges */}
-      <View style={styles.heroImageWrapper}>
-        <Image
-          source={{ uri: getRestaurantCardImage(item) }}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-        {/* Floating Offer Badge Top Left */}
-        <View style={styles.heroBadgeOffer}>
-          <Text style={styles.heroBadgeOfferText}>
-            {item.offerDiscountPercentage ? `${item.offerDiscountPercentage}% OFF` : (item.badge || item.offer || '30% OFF')}
+  const renderRestaurantItem = ({ item }: { item: any }) => {
+    const isClosed = item.isOpen === false;
+
+    return (
+      <TouchableOpacity
+        style={[styles.heroCard, isClosed && { opacity: 0.88 }]}
+        activeOpacity={0.85}
+        onPress={() =>
+          navigation.navigate('RestaurantDetail', {
+            restaurant: item,
+            id: item._id || item.id,
+          })
+        }
+      >
+        <View style={styles.heroImageContainer}>
+          <Image
+            source={{
+              uri:
+                item.image ||
+                item.coverImageUrl ||
+                'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&auto=format&fit=crop&q=80',
+            }}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+
+          {isClosed ? (
+            <View style={styles.closedOverlayContainer}>
+              <View style={styles.closedLockPill}>
+                <Text style={styles.closedLockPillText}>🔒 CURRENTLY CLOSED</Text>
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Floating Offer Badge Top Left */}
+              <View style={styles.heroBadgeOffer}>
+                <Text style={styles.heroBadgeOfferText}>
+                  {item.offerDiscountPercentage ? `${item.offerDiscountPercentage}% OFF` : (item.badge || item.offer || '30% OFF')}
+                </Text>
+              </View>
+
+              {/* Floating Green Rating Badge Top Right */}
+              <View style={styles.heroBadgeRating}>
+                <Text style={styles.heroBadgeRatingText}>★ {item.rating || 4.8} (500+)</Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Card Info Body */}
+        <View style={styles.heroBody}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <Text style={styles.heroTitle} numberOfLines={1}>{item.name || item.restaurant}</Text>
+            {isClosed && (
+              <View style={styles.pausedStatusBadge}>
+                <Text style={styles.pausedStatusBadgeText}>Paused</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.heroCuisine} numberOfLines={1}>
+            {Array.isArray(item.cuisineTags) ? item.cuisineTags.join(' • ') : (item.cuisine || 'Pizza • Italian • Gourmet')}
           </Text>
-        </View>
 
-        {/* Floating Green Rating Badge Top Right */}
-        <View style={styles.heroBadgeRating}>
-          <Text style={styles.heroBadgeRatingText}>★ {item.rating || 4.8} (500+)</Text>
-        </View>
-      </View>
-
-      {/* Card Info Body */}
-      <View style={styles.heroBody}>
-        <Text style={styles.heroTitle}>{item.name || item.restaurant}</Text>
-        <Text style={styles.heroCuisine}>
-          {item.cuisine ? item.cuisine.join(' • ') : 'Pizza • Italian • Gourmet'}
-        </Text>
-
-        <View style={styles.heroFooterRow}>
-          <Text style={styles.heroTime}>⏱️ {item.deliveryTime || '20-25 min'}</Text>
-          <View style={styles.heroViewMenuBtn}>
-            <Text style={styles.heroViewMenuBtnText}>View Menu →</Text>
+          <View style={styles.heroFooterRow}>
+            <Text style={[styles.heroTime, isClosed && { color: '#E11D48', fontWeight: '700' }]}>
+              {isClosed ? '🏪 Not accepting orders right now' : `⏱️ ${item.deliveryTime || '20-25 min'}`}
+            </Text>
+            <View style={styles.heroViewMenuBtn}>
+              <Text style={styles.heroViewMenuBtnText}>View Menu →</Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
@@ -1218,5 +1243,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: COLORS.primary,
+  },
+  closedOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  closedLockPill: {
+    backgroundColor: '#E11D48',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  closedLockPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  pausedStatusBadge: {
+    backgroundColor: '#FFE4E6',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  pausedStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#E11D48',
   },
 });
