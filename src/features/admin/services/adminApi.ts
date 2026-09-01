@@ -70,3 +70,16 @@ export const updateAdminSettingsApi = async (settingsPayload: any) => {
     body: JSON.stringify(settingsPayload),
   });
 };
+
+// 12. Get Live Admin Analytics Stats -> GET /api/admin/analytics-stats?range=...
+export const getAdminAnalyticsStatsApi = async (range: string = 'Last 30 Days') => {
+  return await apiClient(`/admin/analytics-stats?range=${encodeURIComponent(range)}`);
+};
+
+// 13. Update Admin Password -> PATCH /api/users/password
+export const updateAdminPasswordApi = async (payload: { currentPassword: string; newPassword: string }) => {
+  return await apiClient('/users/password', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+};

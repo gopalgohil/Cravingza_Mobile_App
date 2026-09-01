@@ -18,6 +18,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { CustomerBottomNav } from '../components/CustomerBottomNav';
 import { NotificationCard } from '../components/NotificationCard';
 import { HeaderBar, EmptyStateCard } from '../../../components/ui';
+import { NotificationCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
 import { subscribeToOrderUpdates } from '../../../services/socketService';
 
 export interface NotificationItem {
@@ -292,9 +293,11 @@ export const NotificationsScreen = ({ navigation }: any) => {
       {/* Main List Container */}
       <View style={{ flex: 1 }}>
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Syncing Live Notifications...</Text>
+          <View style={{ flex: 1, paddingTop: 16 }}>
+            <NotificationCardSkeleton key="notif_skel_1" />
+            <NotificationCardSkeleton key="notif_skel_2" />
+            <NotificationCardSkeleton key="notif_skel_3" />
+            <NotificationCardSkeleton key="notif_skel_4" />
           </View>
         ) : filteredNotifications.length === 0 ? (
           <FlatList

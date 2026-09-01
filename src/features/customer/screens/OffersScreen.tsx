@@ -6,12 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Alert,
   FlatList,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getOffersApi } from '../services/customerApi';
 import { OfferCardSkeleton } from '../../../components/ui/SkeletonPlaceholder';
@@ -19,10 +19,83 @@ import { useAuth } from '../../../context/AuthContext';
 import { CustomerBottomNav } from '../components/CustomerBottomNav';
 import { copyToClipboard } from '../../../services/clipboardStore';
 
+// SVG Icon components matching Lucide icons in Web App
+const SparklesIcon = ({ color }: { color: string }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <Path d="M5 3v4" />
+    <Path d="M19 17v4" />
+    <Path d="M3 5h4" />
+    <Path d="M17 19h4" />
+  </Svg>
+);
+
+const PercentIcon = ({ color }: { color: string }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="19" y1="5" x2="5" y2="19" />
+    <Circle cx="6.5" cy="6.5" r="2.5" />
+    <Circle cx="17.5" cy="17.5" r="2.5" />
+  </Svg>
+);
+
+const CreditCardIcon = ({ color }: { color: string }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Rect width="20" height="14" x="2" y="5" rx="2" />
+    <Line x1="2" x2="22" y1="10" y2="10" />
+  </Svg>
+);
+
+const TruckIcon = ({ color }: { color: string }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+    <Path d="M15 18H9" />
+    <Path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+    <Circle cx="7" cy="18" r="2" />
+    <Circle cx="17" cy="18" r="2" />
+  </Svg>
+);
+
+const ClockIcon = ({ color = '#94A3B8' }: { color?: string }) => (
+  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Polyline points="12 6 12 12 16 14" />
+  </Svg>
+);
+
+const CopyIcon = ({ color = '#C2410C' }: { color?: string }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <Path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </Svg>
+);
+
+const CheckIcon = ({ color = '#059669' }: { color?: string }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <Polyline points="20 6 9 17 4 12" />
+  </Svg>
+);
+
+const ArrowRightIcon = ({ color = '#FFFFFF' }: { color?: string }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="5" y1="12" x2="19" y2="12" />
+    <Polyline points="12 5 19 12 12 19" />
+  </Svg>
+);
+
+const GiftIcon = ({ color = '#FFFFFF' }: { color?: string }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Polyline points="20 12 20 22 4 22 4 12" />
+    <Rect width="20" height="5" x="2" y="7" />
+    <Line x1="12" y1="22" x2="12" y2="7" />
+    <Path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+    <Path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+  </Svg>
+);
+
 export interface OfferCategory {
   id: string;
   label: string;
-  icon: string;
+  renderIcon: (color: string) => React.ReactNode;
 }
 
 export interface OfferItem {
@@ -55,90 +128,13 @@ export interface OfferItem {
 }
 
 const CATEGORIES: OfferCategory[] = [
-  { id: 'all', label: 'All Offers', icon: '✨' },
-  { id: 'burger_boss', label: 'Burger Boss Specials 🍔', icon: '🍔' },
-  { id: 'flat', label: 'Flat Discounts', icon: '%' },
-  { id: 'payment', label: 'UPI & Bank Deals', icon: '💳' },
-  { id: 'delivery', label: 'Free Delivery', icon: '🚚' },
+  { id: 'all', label: 'All Offers', renderIcon: (color) => <SparklesIcon color={color} /> },
+  { id: 'flat', label: 'Flat Discounts', renderIcon: (color) => <PercentIcon color={color} /> },
+  { id: 'payment', label: 'UPI & Bank Deals', renderIcon: (color) => <CreditCardIcon color={color} /> },
+  { id: 'delivery', label: 'Free Delivery', renderIcon: (color) => <TruckIcon color={color} /> },
 ];
 
 const DEFAULT_OFFERS: OfferItem[] = [
-  {
-    id: 'bb_1',
-    code: 'BURGER50',
-    title: '50% OFF at Burger Boss 🍔',
-    description: 'Get 50% instant discount on all Gourmet Smash Burgers, Sides & Shakes at Burger Boss.',
-    discountType: 'percentage',
-    discountValue: 50,
-    minOrderAmount: 199,
-    maxDiscountAmount: 150,
-    badgeText: '50% OFF BURGER BOSS',
-    category: 'burger_boss',
-    validTill: 'Valid Today',
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&auto=format&fit=crop&q=80',
-    restaurant: {
-      _id: '6a816c0c8170d2e1641c04f1',
-      id: '6a816c0c8170d2e1641c04f1',
-      name: 'Burger Boss',
-    },
-  },
-  {
-    id: 'bb_2',
-    code: 'BURGERBOSS',
-    title: 'FLAT ₹100 OFF on Burger Boss',
-    description: 'Special Burger Boss deal! Flat ₹100 discount on your favorite smash burgers on orders above ₹299.',
-    discountType: 'fixed',
-    discountValue: 100,
-    minOrderAmount: 299,
-    maxDiscountAmount: 100,
-    badgeText: 'FLAT ₹100 BURGER BOSS',
-    category: 'burger_boss',
-    validTill: 'Exclusive Store Deal',
-    image: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400&auto=format&fit=crop&q=80',
-    restaurant: {
-      _id: '6a816c0c8170d2e1641c04f1',
-      id: '6a816c0c8170d2e1641c04f1',
-      name: 'Burger Boss',
-    },
-  },
-  {
-    id: 'bb_3',
-    code: 'BOSSFRIES',
-    title: 'Free Delivery + ₹50 OFF at Burger Boss',
-    description: 'Enjoy free delivery and flat ₹50 OFF on all Burger Boss orders above ₹149.',
-    discountType: 'fixed',
-    discountValue: 50,
-    minOrderAmount: 149,
-    maxDiscountAmount: 50,
-    badgeText: 'FREE DEL + ₹50 OFF',
-    category: 'burger_boss',
-    validTill: 'Valid All Week',
-    image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&auto=format&fit=crop&q=80',
-    restaurant: {
-      _id: '6a816c0c8170d2e1641c04f1',
-      id: '6a816c0c8170d2e1641c04f1',
-      name: 'Burger Boss',
-    },
-  },
-  {
-    id: 'bb_4',
-    code: 'BURGER20',
-    title: '20% Instant Cashback at Burger Boss',
-    description: 'Get 20% instant cashback up to ₹120 when ordering online or COD from Burger Boss.',
-    discountType: 'percentage',
-    discountValue: 20,
-    minOrderAmount: 249,
-    maxDiscountAmount: 120,
-    badgeText: 'BURGER BOSS CASHBACK',
-    category: 'burger_boss',
-    validTill: 'Weekend Special',
-    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&auto=format&fit=crop&q=80',
-    restaurant: {
-      _id: '6a816c0c8170d2e1641c04f1',
-      id: '6a816c0c8170d2e1641c04f1',
-      name: 'Burger Boss',
-    },
-  },
   {
     id: '1',
     code: 'CRAVE50',
@@ -150,8 +146,8 @@ const DEFAULT_OFFERS: OfferItem[] = [
     maxDiscountAmount: 120,
     badgeText: '50% OFF',
     category: 'flat',
+    bgGradient: 'from-orange-500 to-amber-500',
     validTill: 'Expires soon',
-    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop&q=80',
   },
   {
     id: '2',
@@ -164,10 +160,79 @@ const DEFAULT_OFFERS: OfferItem[] = [
     maxDiscountAmount: 100,
     badgeText: 'FLAT ₹100',
     category: 'flat',
-    validTill: 'Valid for new users',
-    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&auto=format&fit=crop&q=80',
+    bgGradient: 'from-rose-500 to-red-600',
+    validTill: 'Expires soon',
+  },
+  {
+    id: '3',
+    code: 'FREEDEL50',
+    title: 'Free Delivery + ₹50 OFF',
+    description: 'Enjoy zero delivery fee and flat ₹50 OFF on all orders above ₹149.',
+    discountType: 'fixed',
+    discountValue: 50,
+    minOrderAmount: 149,
+    maxDiscountAmount: 50,
+    badgeText: 'FREE DELIVERY',
+    category: 'delivery',
+    bgGradient: 'from-emerald-500 to-teal-600',
+    validTill: 'Expires soon',
+  },
+  {
+    id: '4',
+    code: 'RAZORPAY20',
+    title: '20% Instant Cashback',
+    description: 'Get 20% instant discount up to ₹100 when you pay online via Razorpay.',
+    discountType: 'percentage',
+    discountValue: 20,
+    minOrderAmount: 249,
+    maxDiscountAmount: 100,
+    badgeText: 'ONLINE SPECIAL',
+    category: 'payment',
+    bgGradient: 'from-indigo-600 to-blue-500',
+    validTill: 'Expires soon',
   },
 ];
+
+const getCouponTheme = (item: OfferItem) => {
+  const cat = (item.category || '').toLowerCase();
+  const code = (item.code || '').toUpperCase();
+  const badge = (item.badgeText || '').toUpperCase();
+  const bg = (item.bgGradient || '').toLowerCase();
+
+  if (code.includes('WELCOME') || badge.includes('FLAT ₹100') || bg.includes('red') || bg.includes('rose')) {
+    return {
+      accentColor: '#EF4444', // Red / Rose
+      badgeBg: '#EF4444',
+      badgeText: '#FFFFFF',
+    };
+  }
+  if (code.includes('FREEDEL') || badge.includes('FREE DELIVERY') || cat === 'delivery' || bg.includes('emerald') || bg.includes('teal')) {
+    return {
+      accentColor: '#10B981', // Emerald / Green
+      badgeBg: '#10B981',
+      badgeText: '#FFFFFF',
+    };
+  }
+  if (code.includes('RAZOR') || code.includes('BANK') || badge.includes('ONLINE') || cat === 'payment' || bg.includes('indigo') || bg.includes('blue')) {
+    return {
+      accentColor: '#3B82F6', // Indigo / Blue
+      badgeBg: '#3B82F6',
+      badgeText: '#FFFFFF',
+    };
+  }
+  if (code.includes('CHEF') || badge.includes('CHEF') || bg.includes('amber')) {
+    return {
+      accentColor: '#C2410C', // Burnt Orange
+      badgeBg: '#C2410C',
+      badgeText: '#FFFFFF',
+    };
+  }
+  return {
+    accentColor: '#C2410C',
+    badgeBg: '#C2410C',
+    badgeText: '#FFFFFF',
+  };
+};
 
 export const OffersScreen = ({ navigation }: any) => {
   const { currentUser } = useAuth();
@@ -205,26 +270,24 @@ export const OffersScreen = ({ navigation }: any) => {
           minOrderValue: item.minOrderValue || item.minOrderAmount || item.minOrder || 0,
           maxDiscountAmount: item.maxDiscountAmount || item.maxDiscount || item.maxDiscountValue || 100,
           maxDiscount: item.maxDiscountAmount || item.maxDiscount || 100,
-          badgeText: item.badgeText || (item.discountPercentage ? `${item.discountPercentage}% OFF` : item.discountValue ? `FLAT ₹${item.discountValue} OFF` : 'EXCLUSIVE DEAL'),
+          badgeText: item.badgeText || (item.discountPercentage ? `${item.discountPercentage}% OFF` : item.discountValue ? `FLAT ₹${item.discountValue} OFF` : 'SPECIAL OFFER'),
           category: item.category || 'flat',
+          bgGradient: item.bgGradient || 'from-orange-500 to-amber-500',
           validTill: item.validTill || item.validUntil || item.expiryDate || 'Expires soon',
-          image: item.image || item.imageUrl || DEFAULT_OFFERS[idx % DEFAULT_OFFERS.length].image,
           restaurant: item.restaurant,
           isUsed: item.isUsed || false,
         }));
       }
 
-      // 🌟 Combine Live MongoDB Atlas offers with Active Platform & Burger Boss Deals
+      // Map dynamic live offers from API with fallbacks
       const combinedMap = new Map<string, OfferItem>();
 
-      // 1. Add Active Platform & Burger Boss Deals first
       DEFAULT_OFFERS.forEach((defOff) => {
         if (defOff.code) {
           combinedMap.set(defOff.code.trim().toUpperCase(), defOff);
         }
       });
 
-      // 2. Override/Merge Live MongoDB Atlas Merchant Offers from API
       formattedLiveOffers.forEach((off) => {
         if (off.code) {
           combinedMap.set(off.code.trim().toUpperCase(), {
@@ -268,7 +331,7 @@ export const OffersScreen = ({ navigation }: any) => {
     }
   };
 
-  // Dynamic filtering matching backend categories
+  // Dynamic filtering matching Web Application logic
   const filteredOffers = useMemo(() => {
     if (!selectedCategory || selectedCategory === 'all') {
       return offers;
@@ -279,25 +342,11 @@ export const OffersScreen = ({ navigation }: any) => {
       const code = (item.code || '').toLowerCase().trim();
       const title = (item.title || '').toLowerCase().trim();
       const badge = (item.badgeText || '').toLowerCase().trim();
-      const restName = (item.restaurant?.name || '').toLowerCase().trim();
-
-      if (selectedCategory === 'burger_boss') {
-        return (
-          cat === 'burger_boss' ||
-          cat === 'burgerboss' ||
-          restName.includes('burger boss') ||
-          code.includes('burger') ||
-          code.includes('boss') ||
-          title.includes('burger boss') ||
-          badge.includes('burger boss')
-        );
-      }
 
       if (selectedCategory === 'flat') {
         return (
           cat === 'flat' ||
           cat === 'discount' ||
-          cat === 'flat discounts' ||
           item.discountType === 'percentage' ||
           item.discountType === 'fixed' ||
           title.includes('flat') ||
@@ -323,11 +372,9 @@ export const OffersScreen = ({ navigation }: any) => {
         return (
           cat === 'delivery' ||
           cat === 'free delivery' ||
-          cat === 'freedelivery' ||
           badge.includes('delivery') ||
           title.includes('delivery') ||
-          code.includes('del') ||
-          code.includes('fries')
+          code.includes('del')
         );
       }
 
@@ -342,36 +389,31 @@ export const OffersScreen = ({ navigation }: any) => {
       item.isUsed ||
       (currentUserId && item.usedByUsers && item.usedByUsers.includes(currentUserId));
 
+    const theme = getCouponTheme(item);
+
     const badgeLabel =
       item.badgeText ||
       (item.category === 'delivery'
         ? 'FREE DELIVERY'
         : item.category === 'payment'
-        ? 'BANK / UPI DEAL'
+        ? 'ONLINE SPECIAL'
         : item.discountValue
         ? item.discountType === 'percentage'
           ? `${item.discountValue}% OFF`
           : `FLAT ₹${item.discountValue} OFF`
         : 'SPECIAL OFFER');
 
-    const minAmount = item.minOrderAmount || item.minOrderValue;
-    const validityText = typeof item.validTill === 'string'
-      ? item.validTill
-      : item.validTill
-      ? `Valid till ${new Date(item.validTill).toLocaleDateString()}`
-      : 'Expires soon';
-
     return (
       <View style={[styles.offerCard, isUsed && styles.usedOfferCard]}>
-        {/* Top Accent Strip */}
-        <View style={styles.cardTopAccent} />
+        {/* Top Accent Strip matching Web App gradient bar */}
+        <View style={[styles.cardTopAccent, { backgroundColor: isUsed ? '#94A3B8' : theme.accentColor }]} />
 
         <View style={styles.cardBody}>
-          {/* Header Row: Badge & Expiry */}
+          {/* Header Row: Badge Pill & Expiry */}
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgesWrapper}>
-              <View style={[styles.badgePill, isUsed && { backgroundColor: '#F1F5F9' }]}>
-                <Text style={[styles.badgeText, isUsed && { color: '#64748B' }]}>
+              <View style={[styles.badgePill, { backgroundColor: isUsed ? '#94A3B8' : theme.badgeBg }]}>
+                <Text style={styles.badgeText}>
                   {isUsed ? '✓ ALREADY USED' : badgeLabel}
                 </Text>
               </View>
@@ -385,34 +427,26 @@ export const OffersScreen = ({ navigation }: any) => {
               )}
             </View>
 
-            <Text style={[styles.validityText, isUsed && { color: '#94A3B8' }]}>
-              {isUsed ? 'Redeemed' : `⏰ ${validityText}`}
-            </Text>
+            <View style={styles.expiryRow}>
+              <ClockIcon color="#94A3B8" />
+              <Text style={[styles.validityText, isUsed && { color: '#94A3B8' }]}>
+                {isUsed ? 'Redeemed' : 'Expires soon'}
+              </Text>
+            </View>
           </View>
 
-          {/* Offer Title & Description */}
+          {/* Title & Description */}
           <Text style={[styles.offerTitle, isUsed && { color: '#64748B' }]}>{item.title}</Text>
           <Text style={styles.offerDescription}>{item.description}</Text>
-
-          {/* Metadata Row: Min Order & Max Discount */}
-          {!!minAmount && (
-            <View style={styles.metaRow}>
-              <Text style={styles.metaText}>• Min. order: ₹{minAmount}</Text>
-              {!!(item.maxDiscountAmount || item.maxDiscount) && (
-                <Text style={styles.metaText}>
-                  • Max discount: ₹{item.maxDiscountAmount || item.maxDiscount}
-                </Text>
-              )}
-            </View>
-          )}
         </View>
 
-        <View style={styles.cardDashedLine} />
+        {/* Divider Line */}
+        <View style={styles.cardDivider} />
 
         {/* Bottom Actions Row */}
         <View style={styles.cardBottomRow}>
           <View style={styles.couponCodeContainer}>
-            <Text style={styles.couponCodeLabel}>PROMO CODE (TAP TO COPY)</Text>
+            <Text style={styles.couponCodeLabel}>PROMO CODE</Text>
             <TouchableOpacity
               style={[
                 styles.couponCodeBox,
@@ -431,7 +465,9 @@ export const OffersScreen = ({ navigation }: any) => {
                 {item.code}
               </Text>
               {!isUsed && (
-                <Text style={styles.copyIconText}>{isCopied ? '✅' : '📋'}</Text>
+                <View style={styles.copyIconWrapper}>
+                  {isCopied ? <CheckIcon color="#059669" /> : <CopyIcon color="#C2410C" />}
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -446,7 +482,12 @@ export const OffersScreen = ({ navigation }: any) => {
               onPress={() => handleApplyDeal(item)}
               activeOpacity={0.8}
             >
-              <Text style={styles.applyBtnText}>APPLY DEAL →</Text>
+              <View style={styles.applyBtnContent}>
+                <Text style={styles.applyBtnText}>
+                  {item.restaurant?.name ? `Order` : `Apply Deal`}
+                </Text>
+                <ArrowRightIcon color="#FFFFFF" />
+              </View>
             </TouchableOpacity>
           )}
         </View>
@@ -456,7 +497,7 @@ export const OffersScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Top Navigation Header */}
+      {/* Top Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.topNavIconText}>←</Text>
@@ -475,25 +516,25 @@ export const OffersScreen = ({ navigation }: any) => {
               setRefreshing(true);
               fetchOffers();
             }}
-            colors={[COLORS.primary]}
+            colors={['#C2410C']}
           />
         }
       >
-        {/* Top Hero Super Saver Banner */}
+        {/* Super Saver Festival Hero Banner matching Web App */}
         <View style={styles.heroPromoBanner}>
           <View style={{ flex: 1 }}>
             <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>🔥 CRAVINGZA DEALS</Text>
+              <GiftIcon color="#FFFFFF" />
+              <Text style={styles.heroBadgeText}>SUPER SAVER FESTIVAL</Text>
             </View>
             <Text style={styles.heroTitle}>Delicious Food, Unbeatable Discounts!</Text>
             <Text style={styles.heroSub}>
               Save big on every craving. Use promo codes at checkout for instant price cuts & free delivery.
             </Text>
           </View>
-          <Text style={styles.heroEmoji}>🍔</Text>
         </View>
 
-        {/* Category Filter Tabs matching Web App */}
+        {/* Category Filter Pills matching Web App Screenshot */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -501,23 +542,22 @@ export const OffersScreen = ({ navigation }: any) => {
         >
           {CATEGORIES.map((cat) => {
             const isActive = selectedCategory === cat.id;
+            const iconColor = isActive ? '#FFFFFF' : '#C2410C';
             return (
               <TouchableOpacity
                 key={cat.id}
                 style={[
                   styles.filterTab,
-                  isActive && styles.filterTabActive,
+                  isActive ? styles.filterTabActive : styles.filterTabInactive,
                 ]}
                 onPress={() => setSelectedCategory(cat.id)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.filterTabIcon, isActive && styles.filterTabIconActive]}>
-                  {cat.icon}
-                </Text>
+                {cat.renderIcon(iconColor)}
                 <Text
                   style={[
                     styles.filterTabText,
-                    isActive && styles.filterTabTextActive,
+                    isActive ? styles.filterTabTextActive : styles.filterTabTextInactive,
                   ]}
                 >
                   {cat.label}
@@ -603,101 +643,96 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
     shadowColor: '#C2410C',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 4,
   },
   heroBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   heroBadgeText: {
     color: COLORS.white,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   heroTitle: {
     color: COLORS.white,
-    fontSize: FONT_SIZE.lg,
+    fontSize: 22,
     fontWeight: '900',
-    marginBottom: 4,
-    lineHeight: 24,
+    marginBottom: 6,
+    lineHeight: 28,
   },
   heroSub: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: FONT_SIZE.xs,
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontSize: 12,
     lineHeight: 18,
   },
-  heroEmoji: {
-    fontSize: 44,
-    marginLeft: 8,
-  },
   filterBarContainer: {
-    gap: 8,
+    gap: 10,
     paddingBottom: SPACING.md,
   },
   filterTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
+    borderRadius: 20,
+    gap: 8,
   },
   filterTabActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-    shadowColor: COLORS.primary,
+    backgroundColor: '#C2410C',
+    shadowColor: '#C2410C',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 4,
   },
-  filterTabIcon: {
-    fontSize: 14,
-    color: COLORS.primary,
-  },
-  filterTabIconActive: {
-    color: COLORS.white,
+  filterTabInactive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   filterTabText: {
-    fontSize: FONT_SIZE.xs,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#334155',
   },
   filterTabTextActive: {
-    color: COLORS.white,
+    color: '#FFFFFF',
+  },
+  filterTabTextInactive: {
+    color: '#1E3A8A', // Web App dark navy text style
   },
   offerCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 24,
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   usedOfferCard: {
     backgroundColor: '#F8FAFC',
     borderColor: '#E2E8F0',
-    opacity: 0.75,
+    opacity: 0.7,
   },
   cardTopAccent: {
-    height: 4,
-    backgroundColor: COLORS.primary,
+    height: 5,
+    width: '100%',
   },
   cardBody: {
     padding: SPACING.md,
@@ -706,7 +741,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   badgesWrapper: {
     flexDirection: 'row',
@@ -715,23 +750,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   badgePill: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   badgeText: {
-    color: COLORS.white,
-    fontSize: 10,
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   restaurantTag: {
     backgroundColor: '#FFF7ED',
     borderWidth: 1,
     borderColor: '#FFEDD5',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 8,
     maxWidth: 140,
   },
@@ -740,110 +774,113 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  expiryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   validityText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#94A3B8',
   },
   offerTitle: {
-    fontSize: FONT_SIZE.md,
+    fontSize: 18,
     fontWeight: '900',
     color: '#0F172A',
     marginBottom: 4,
+    lineHeight: 24,
   },
   offerDescription: {
-    fontSize: FONT_SIZE.xs,
+    fontSize: 13,
     color: '#475569',
-    lineHeight: 18,
+    lineHeight: 19,
   },
-  metaRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  metaText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  cardDashedLine: {
+  cardDivider: {
     height: 1,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
+    backgroundColor: '#F1F5F9',
   },
   cardBottomRow: {
     padding: SPACING.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF',
     gap: 8,
   },
   couponCodeContainer: {
-    gap: 2,
+    gap: 4,
   },
   couponCodeLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: '#94A3B8',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   couponCodeBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    gap: 6,
+    borderColor: '#E2E8F0',
+    gap: 8,
   },
   copiedCodeBox: {
     backgroundColor: '#DCFCE7',
     borderColor: '#86EFAC',
   },
   couponCodeText: {
-    fontSize: FONT_SIZE.xs,
+    fontSize: 13,
     fontWeight: '900',
     color: '#0F172A',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
-  copyIconText: {
-    fontSize: 12,
-  },
-  applyBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+  copyIconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
   },
+  applyBtn: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  applyBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   applyBtnText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZE.xs,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
   usedBtn: {
     backgroundColor: '#94A3B8',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
   usedBtnText: {
     color: '#FFFFFF',
-    fontSize: FONT_SIZE.xs,
+    fontSize: 12,
     fontWeight: '800',
   },
   emptyContainer: {
     paddingVertical: SPACING.xl * 1.5,
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     paddingHorizontal: SPACING.md,

@@ -11,11 +11,14 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { getUserProfileApi, updateUserProfileApi } from '../../auth/services/authApi';
+import { BASE_URL, getAuthToken } from '../../../services/apiClient';
 import { getAuth } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
@@ -26,10 +29,11 @@ import { CustomerBottomNav } from '../../customer/components/CustomerBottomNav';
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { selectedAddress, saveNewAddress, setSelectedAddress } = useAddress();
-  const { currentUser, setAuthUser, logout: authLogout } = useAuth();
+  const { currentUser, token, setAuthUser, logout: authLogout } = useAuth();
   // 🔹 State Management
   const [loading, setLoading] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
   const [phoneModalVisible, setPhoneModalVisible] = useState<boolean>(false);
   const [newPhoneInput, setNewPhoneInput] = useState<string>('');
@@ -42,6 +46,87 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [newLabelInput, setNewLabelInput] = useState<string>('Home');
   const [savingAddress, setSavingAddress] = useState<boolean>(false);
 
+  // 📷 Dynamic Profile Avatar Picker & Cloudinary Upload Handler
+  const handlePickAvatar = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 600,
+        maxHeight: 600,
+      });
+
+      if (result.didCancel || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset.uri) return;
+
+      setUploadingAvatar(true);
+
+      // 1. Build FormData for Backend Cloudinary Upload (/api/upload)
+      const formData = new FormData();
+      formData.append('file', {
+        uri: Platform.OS === 'android' ? asset.uri : asset.uri.replace('file://', ''),
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || `avatar_${Date.now()}.jpg`,
+      } as any);
+      formData.append('folder', 'cravingza/profile-avatars');
+
+      const activeToken = token || getAuthToken();
+      console.log('Uploading profile picture to Cloudinary via POST /api/upload...', { hasToken: !!activeToken });
+
+      const uploadRes = await fetch(`${BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      console.log('Cloudinary Upload API Response:', uploadData);
+
+      const uploadedUrl =
+        uploadData?.url ||
+        uploadData?.secure_url ||
+        uploadData?.data?.url ||
+        uploadData?.data?.secure_url;
+
+      if (!uploadRes.ok || !uploadedUrl) {
+        throw new Error(uploadData?.message || uploadData?.error || 'Failed to upload profile picture to Cloudinary.');
+      }
+
+      // 2. Update local state with Cloudinary HTTPS URL
+      setAvatar(uploadedUrl);
+
+      // 3. Save Cloudinary URL in MongoDB User document via PATCH /api/user/profile
+      console.log('Saving Cloudinary Avatar URL into MongoDB database:', uploadedUrl);
+      const updateRes = await updateUserProfileApi({
+        name: name || currentUser?.name || 'Cravingza Customer',
+        avatar: uploadedUrl,
+      });
+      console.log('MongoDB Profile Update Response:', updateRes);
+
+      // 4. Update AuthContext global user state
+      setAuthUser({
+        ...currentUser,
+        avatar: uploadedUrl,
+      });
+
+      Alert.alert(
+        'Profile Picture Updated 🎉',
+        'Your profile picture has been uploaded to Cloudinary & saved to MongoDB Atlas successfully!'
+      );
+    } catch (err: any) {
+      console.log('Avatar upload error:', err);
+      Alert.alert('Upload Failed ❌', err?.message || 'Unable to upload profile picture.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSavePhoneOnly = async () => {
     if (!newPhoneInput.trim()) {
       Alert.alert('Validation Error', 'Please enter your mobile phone number.');
@@ -51,7 +136,7 @@ export const ProfileScreen = ({ navigation }: any) => {
     try {
       setSavingPhone(true);
       const cleanedPhone = newPhoneInput.trim();
-      await updateUserProfileApi({ phone: cleanedPhone }).catch(() => {});
+      await updateUserProfileApi({ phone: cleanedPhone }).catch(() => { });
 
       setPhone(cleanedPhone);
       setAuthUser({
@@ -212,6 +297,7 @@ export const ProfileScreen = ({ navigation }: any) => {
       const payload = {
         name: name.trim(),
         phone: phone.trim(),
+        avatar: avatar,
       };
 
       const res = await updateUserProfileApi(payload);
@@ -251,22 +337,22 @@ export const ProfileScreen = ({ navigation }: any) => {
     }
   };
 
-const handleLogout = () => {
-  Alert.alert('Logout Confirmation', 'Are you sure you want to log out of Cravingza?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Logout',
-      style: 'destructive',
-      onPress: () => {
-        authLogout();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
+  const handleLogout = () => {
+    Alert.alert('Logout Confirmation', 'Are you sure you want to log out of Cravingza?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => {
+          authLogout();
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          });
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
   if (!currentUser) {
     return (
@@ -302,435 +388,451 @@ const handleLogout = () => {
     );
   }
 
-return (
-  <SafeAreaView style={styles.safeArea}>
-    {/* Top Header */}
-    <View style={styles.headerRow}>
-      <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
-        <Text style={styles.topNavIconText}>←</Text>
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>My Account & Profile</Text>
-      <TouchableOpacity
-        style={styles.editToggleBtn}
-        onPress={() => setIsEditMode(!isEditMode)}
-      >
-        <Text style={styles.editToggleBtnText}>{isEditMode ? 'Cancel' : 'Edit'}</Text>
-      </TouchableOpacity>
-    </View>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {/* Top Header */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.iconCircleBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.topNavIconText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Account & Profile</Text>
+        <TouchableOpacity
+          style={styles.editToggleBtn}
+          onPress={() => setIsEditMode(!isEditMode)}
+        >
+          <Text style={styles.editToggleBtnText}>{isEditMode ? 'Cancel' : 'Edit'}</Text>
+        </TouchableOpacity>
+      </View>
 
-    {loading ? (
-      <ProfileSkeleton />
-    ) : (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* User Hero Avatar Card */}
-        <View style={styles.userHeroCard}>
-          <View style={styles.avatarContainer}>
-            <Image source={{ uri: avatar }} style={styles.avatarImage} />
-            <View style={styles.activeBadgeDot} />
-          </View>
-          <Text style={styles.userNameText}>{name}</Text>
-          <Text style={styles.userEmailText}>{email}</Text>
-          <View style={styles.roleTagBadge}>
-            <Text style={styles.roleTagText}>
-              {role === 'restaurant_owner' || role === 'owner' ? 'OWNER' : role.toUpperCase()}
-            </Text>
-          </View>
-
-          {(role === 'restaurant_owner' || role === 'owner') && (
+      {loading ? (
+        <ProfileSkeleton />
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* User Hero Avatar Card */}
+          <View style={styles.userHeroCard}>
             <TouchableOpacity
-              style={{
-                backgroundColor: '#EA580C',
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 10,
-                marginTop: 10,
-                alignItems: 'center',
-              }}
-              onPress={() => navigation.navigate('RestaurantOwnerLayout')}
-            >
-              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>
-                Open Restaurant Admin Portal →
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Profile Form Details Section */}
-        <View style={styles.formCard}>
-          <Text style={styles.sectionHeaderTitle}>Personal Information</Text>
-
-          {/* Name Input */}
-          <Text style={styles.fieldLabel}>Full Name</Text>
-          {isEditMode ? (
-            <TextInput
-              style={styles.textInputActive}
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter full name"
-              placeholderTextColor="#94A3B8"
-              autoComplete="name"
-              textContentType="name"
-            />
-          ) : (
-            <Text style={styles.fieldValueReadOnly}>{name}</Text>
-          )}
-
-          {/* Email Input */}
-          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Email Address</Text>
-          <Text style={styles.fieldValueReadOnly}>{email}</Text>
-
-          {/* Phone Number Input */}
-          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Phone Number</Text>
-          {isEditMode ? (
-            <TextInput
-              style={styles.textInputActive}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="Enter phone number (e.g. +91 98765 43210)"
-              placeholderTextColor="#94A3B8"
-              autoComplete="tel"
-              textContentType="telephoneNumber"
-            />
-          ) : phone ? (
-            <Text style={styles.fieldValueReadOnly}>{phone}</Text>
-          ) : (
-            <TouchableOpacity
-              style={styles.addPhonePillBtn}
-              onPress={() => {
-                setNewPhoneInput('');
-                setPhoneModalVisible(true);
-              }}
+              style={styles.avatarContainer}
+              onPress={handlePickAvatar}
               activeOpacity={0.8}
+              disabled={uploadingAvatar}
             >
-              <Text style={styles.addPhonePillText}>Enter phone number</Text>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>+ Add</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Delivery Address Section */}
-          <View style={{ marginTop: 14 }}>
-            <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Saved Delivery Address</Text>
-
-            {street ? (
-              <View style={{
-                backgroundColor: '#F8FAFC',
-                padding: 12,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#E2E8F0',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={{ fontSize: 13, color: '#1E293B', fontWeight: '700' }}>{street}</Text>
-                  {(city || pincode) ? (
-                    <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '600' }}>
-                      {city}{city && pincode ? ' • ' : ''}Pincode: <Text style={{ color: '#EA580C', fontWeight: '800' }}>{pincode}</Text>
-                    </Text>
-                  ) : null}
+              <Image source={{ uri: avatar }} style={styles.avatarImage} />
+              {uploadingAvatar ? (
+                <View style={styles.avatarLoadingOverlay}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 </View>
-
-                {/* Professional Theme SVG Pen Edit Icon Button */}
-                <TouchableOpacity
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    backgroundColor: '#FFF7ED',
-                    borderWidth: 1,
-                    borderColor: '#FFEDD5',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  onPress={() => {
-                    setNewStreetInput(street);
-                    setNewCityInput(city || 'Vadodara');
-                    setNewPincodeInput(pincode || '390023');
-                    setAddressModalVisible(true);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                    <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              ) : (
+                <View style={styles.cameraIconBadge}>
+                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <Circle cx="12" cy="13" r="4" />
                   </Svg>
-                </TouchableOpacity>
-              </View>
-            ) : (
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.userNameText}>{name}</Text>
+            <Text style={styles.userEmailText}>{email}</Text>
+            <View style={styles.roleTagBadge}>
+              <Text style={styles.roleTagText}>
+                {role === 'restaurant_owner' || role === 'owner' ? 'OWNER' : role.toUpperCase()}
+              </Text>
+            </View>
+
+            {(role === 'restaurant_owner' || role === 'owner') && (
               <TouchableOpacity
                 style={{
-                  backgroundColor: '#FFF7ED',
-                  padding: 14,
-                  borderRadius: 12,
-                  borderWidth: 1.5,
-                  borderColor: '#FFEDD5',
-                  borderStyle: 'dashed',
+                  backgroundColor: '#EA580C',
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  marginTop: 10,
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
                 }}
-                onPress={() => {
-                  setNewStreetInput('');
-                  setNewCityInput('Vadodara');
-                  setNewPincodeInput('390023');
-                  setAddressModalVisible(true);
-                }}
-                activeOpacity={0.8}
+                onPress={() => navigation.navigate('RestaurantOwnerLayout')}
               >
-                <Text style={{ fontSize: 14, color: '#EA580C', fontWeight: '700' }}>
-                  + Add Delivery Address
-                </Text>
-                <Text style={{ fontSize: 12, color: '#9A3412', fontWeight: '400' }}>
-                  Click here to add street, city & pincode
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>
+                  Open Restaurant Admin Portal →
                 </Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Save Button in Edit Mode */}
-          {isEditMode && (
-            <TouchableOpacity
-              style={[styles.saveProfileBtn, isUpdating && { opacity: 0.7 }]}
-              onPress={handleUpdateProfile}
-              disabled={isUpdating}
-            >
-              {isUpdating ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
+          {/* Profile Form Details Section */}
+          <View style={styles.formCard}>
+            <Text style={styles.sectionHeaderTitle}>Personal Information</Text>
+
+            {/* Name Input */}
+            <Text style={styles.fieldLabel}>Full Name</Text>
+            {isEditMode ? (
+              <TextInput
+                style={styles.textInputActive}
+                value={name}
+                onChangeText={setName}
+                placeholder="Enter full name"
+                placeholderTextColor="#94A3B8"
+                autoComplete="name"
+                textContentType="name"
+              />
+            ) : (
+              <Text style={styles.fieldValueReadOnly}>{name}</Text>
+            )}
+
+            {/* Email Input */}
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Email Address</Text>
+            <Text style={styles.fieldValueReadOnly}>{email}</Text>
+
+            {/* Phone Number Input */}
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Phone Number</Text>
+            {isEditMode ? (
+              <TextInput
+                style={styles.textInputActive}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                placeholder="Enter phone number (e.g. +91 98765 43210)"
+                placeholderTextColor="#94A3B8"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+              />
+            ) : phone ? (
+              <Text style={styles.fieldValueReadOnly}>{phone}</Text>
+            ) : (
+              <TouchableOpacity
+                style={styles.addPhonePillBtn}
+                onPress={() => {
+                  setNewPhoneInput('');
+                  setPhoneModalVisible(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addPhonePillText}>Enter phone number</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>+ Add</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Delivery Address Section */}
+            <View style={{ marginTop: 14 }}>
+              <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Saved Delivery Address</Text>
+
+              {street ? (
+                <View style={{
+                  backgroundColor: '#F8FAFC',
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ fontSize: 13, color: '#1E293B', fontWeight: '700' }}>{street}</Text>
+                    {(city || pincode) ? (
+                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '600' }}>
+                        {city}{city && pincode ? ' • ' : ''}Pincode: <Text style={{ color: '#EA580C', fontWeight: '800' }}>{pincode}</Text>
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* Professional Theme SVG Pen Edit Icon Button */}
+                  <TouchableOpacity
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      backgroundColor: '#FFF7ED',
+                      borderWidth: 1,
+                      borderColor: '#FFEDD5',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onPress={() => {
+                      setNewStreetInput(street);
+                      setNewCityInput(city || 'Vadodara');
+                      setNewPincodeInput(pincode || '390023');
+                      setAddressModalVisible(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </Svg>
+                  </TouchableOpacity>
+                </View>
               ) : (
-                <Text style={styles.saveProfileBtnText}>Save Profile Changes</Text>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FFF7ED',
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: '#FFEDD5',
+                    borderStyle: 'dashed',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                  onPress={() => {
+                    setNewStreetInput('');
+                    setNewCityInput('Vadodara');
+                    setNewPincodeInput('390023');
+                    setAddressModalVisible(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 14, color: '#EA580C', fontWeight: '700' }}>
+                    + Add Delivery Address
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#9A3412', fontWeight: '400' }}>
+                    Click here to add street, city & pincode
+                  </Text>
+                </TouchableOpacity>
               )}
+            </View>
+
+            {/* Save Button in Edit Mode */}
+            {isEditMode && (
+              <TouchableOpacity
+                style={[styles.saveProfileBtn, isUpdating && { opacity: 0.7 }]}
+                onPress={handleUpdateProfile}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.saveProfileBtnText}>Save Profile Changes</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Quick Menu Options */}
+          <View style={styles.menuOptionsCard}>
+            <Text style={styles.sectionHeaderTitle}>Account & Settings</Text>
+
+            <TouchableOpacity
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('Orders')}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemTitle}>My Orders</Text>
+                <Text style={styles.menuItemSub}>View active and past food orders</Text>
+              </View>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuRowItem}
+              onPress={() => Alert.alert('Saved Addresses', street ? `${street}, ${city} - ${pincode}` : 'No address saved yet.')}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemTitle}>Delivery Addresses</Text>
+                <Text style={styles.menuItemSub}>Manage home, work & saved locations</Text>
+              </View>
+              <Text style={styles.menuItemChevron}>→</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Partner & Earn With Cravingza Card */}
+          <View style={styles.menuOptionsCard}>
+            <Text style={styles.sectionHeaderTitle}>Partner & Earn With Us</Text>
+
+            <TouchableOpacity
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('PartnerOnboarding', { initialMode: 'restaurant' })}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemTitle}>Register Restaurant Partner</Text>
+                <Text style={styles.menuItemSub}>Grow your food business & orders</Text>
+              </View>
+              <Text style={styles.menuItemChevron}>→</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuRowItem}
+              onPress={() => navigation.navigate('PartnerOnboarding', { initialMode: 'delivery' })}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemTitle}>Ride & Earn as Delivery Partner</Text>
+                <Text style={styles.menuItemSub}>Flexible payouts & daily incentives</Text>
+              </View>
+              <Text style={styles.menuItemChevron}>→</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 🛡️ Super Admin Portal Card (Only for Admins) */}
+          {(role === 'admin' || role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
+            <View style={styles.menuOptionsCard}>
+              <Text style={styles.sectionHeaderTitle}>🛡️ Super Admin Portal</Text>
+
+              <TouchableOpacity
+                style={styles.menuRowItem}
+                onPress={() => navigation.navigate('AdminLayout')}
+              >
+                <Text style={styles.menuItemIcon}>⚡</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Vendor & Rider Approvals</Text>
+                  <Text style={styles.menuItemSub}>Review KYC docs & approve partners</Text>
+                </View>
+                <Text style={styles.menuItemChevron}>→</Text>
+              </TouchableOpacity>
+            </View>
           )}
-        </View>
 
-        {/* Quick Menu Options */}
-        <View style={styles.menuOptionsCard}>
-          <Text style={styles.sectionHeaderTitle}>Account & Settings</Text>
+          {/* 🚴 Delivery Hero Portal Card (For Delivery Partners) */}
+          {(role === 'delivery_partner' || role === 'delivery' || role === 'rider' || currentUser?.role === 'delivery_partner') && (
+            <View style={styles.menuOptionsCard}>
+              <Text style={styles.sectionHeaderTitle}>🚴 Delivery Hero Portal</Text>
 
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => navigation.navigate('Orders')}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>My Orders</Text>
-              <Text style={styles.menuItemSub}>View active and past food orders</Text>
+              <TouchableOpacity
+                style={styles.menuRowItem}
+                onPress={() => navigation.navigate('DeliveryPartnerLayout')}
+              >
+                <Text style={styles.menuItemIcon}>🛵</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Delivery Rider Dashboard</Text>
+                  <Text style={styles.menuItemSub}>View assigned orders & earnings</Text>
+                </View>
+                <Text style={styles.menuItemChevron}>→</Text>
+              </TouchableOpacity>
             </View>
+          )}
+
+          {/* Logout Button */}
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Text style={styles.logoutBtnText}>Log Out</Text>
           </TouchableOpacity>
+        </ScrollView>
+      )}
 
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => Alert.alert('Saved Addresses', street ? `${street}, ${city} - ${pincode}` : 'No address saved yet.')}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>Delivery Addresses</Text>
-              <Text style={styles.menuItemSub}>Manage home, work & saved locations</Text>
-            </View>
-            <Text style={styles.menuItemChevron}>→</Text>
-          </TouchableOpacity>
-        </View>
+      {/* 📍 Dedicated Delivery Address Add/Edit Modal */}
+      <Modal visible={addressModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>📍 Add Delivery Address</Text>
+            <Text style={styles.modalSub}>
+              Enter your house/flat number, street name, city, and pincode for accurate food delivery.
+            </Text>
 
-        {/* Partner & Earn With Cravingza Card */}
-        <View style={styles.menuOptionsCard}>
-          <Text style={styles.sectionHeaderTitle}>Partner & Earn With Us</Text>
+            <Text style={styles.fieldLabel}>Street / Building / Flat Address</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newStreetInput}
+              onChangeText={setNewStreetInput}
+              placeholder="e.g. A-18 Arunachal Flat, Subhanpura"
+              placeholderTextColor="#94A3B8"
+              autoComplete="street-address"
+              textContentType="fullStreetAddress"
+              autoFocus
+            />
 
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => navigation.navigate('PartnerOnboarding', { initialMode: 'restaurant' })}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>Register Restaurant Partner</Text>
-              <Text style={styles.menuItemSub}>Grow your food business & orders</Text>
-            </View>
-            <Text style={styles.menuItemChevron}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuRowItem}
-            onPress={() => navigation.navigate('PartnerOnboarding', { initialMode: 'delivery' })}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuItemTitle}>Ride & Earn as Delivery Partner</Text>
-              <Text style={styles.menuItemSub}>Flexible payouts & daily incentives</Text>
-            </View>
-            <Text style={styles.menuItemChevron}>→</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 🛡️ Super Admin Portal Card (Only for Admins) */}
-        {(role === 'admin' || role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
-          <View style={styles.menuOptionsCard}>
-            <Text style={styles.sectionHeaderTitle}>🛡️ Super Admin Portal</Text>
-
-            <TouchableOpacity
-              style={styles.menuRowItem}
-              onPress={() => navigation.navigate('AdminLayout')}
-            >
-              <Text style={styles.menuItemIcon}>⚡</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.menuItemTitle}>Vendor & Rider Approvals</Text>
-                <Text style={styles.menuItemSub}>Review KYC docs & approve partners</Text>
+                <Text style={styles.fieldLabel}>City</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newCityInput}
+                  onChangeText={setNewCityInput}
+                  placeholder="City"
+                  placeholderTextColor="#94A3B8"
+                  autoComplete="address-level2"
+                  textContentType="addressCity"
+                />
               </View>
-              <Text style={styles.menuItemChevron}>→</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* 🚴 Delivery Hero Portal Card (For Delivery Partners) */}
-        {(role === 'delivery_partner' || role === 'delivery' || role === 'rider' || currentUser?.role === 'delivery_partner') && (
-          <View style={styles.menuOptionsCard}>
-            <Text style={styles.sectionHeaderTitle}>🚴 Delivery Hero Portal</Text>
-
-            <TouchableOpacity
-              style={styles.menuRowItem}
-              onPress={() => navigation.navigate('DeliveryPartnerLayout')}
-            >
-              <Text style={styles.menuItemIcon}>🛵</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.menuItemTitle}>Delivery Rider Dashboard</Text>
-                <Text style={styles.menuItemSub}>View assigned orders & earnings</Text>
+              <View style={{ width: 120 }}>
+                <Text style={styles.fieldLabel}>Pincode</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newPincodeInput}
+                  onChangeText={(val) => setNewPincodeInput(val.replace(/[^0-9]/g, '').slice(0, 6))}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  placeholder="Pincode"
+                  placeholderTextColor="#94A3B8"
+                  autoComplete="postal-code"
+                  textContentType="postalCode"
+                />
               </View>
-              <Text style={styles.menuItemChevron}>→</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutBtnText}>Log Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    )}
-
-    {/* 📍 Dedicated Delivery Address Add/Edit Modal */}
-    <Modal visible={addressModalVisible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>📍 Add Delivery Address</Text>
-          <Text style={styles.modalSub}>
-            Enter your house/flat number, street name, city, and pincode for accurate food delivery.
-          </Text>
-
-          <Text style={styles.fieldLabel}>Street / Building / Flat Address</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={newStreetInput}
-            onChangeText={setNewStreetInput}
-            placeholder="e.g. A-18 Arunachal Flat, Subhanpura"
-            placeholderTextColor="#94A3B8"
-            autoComplete="street-address"
-            textContentType="fullStreetAddress"
-            autoFocus
-          />
-
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>City</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newCityInput}
-                onChangeText={setNewCityInput}
-                placeholder="City"
-                placeholderTextColor="#94A3B8"
-                autoComplete="address-level2"
-                textContentType="addressCity"
-              />
             </View>
-            <View style={{ width: 120 }}>
-              <Text style={styles.fieldLabel}>Pincode</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newPincodeInput}
-                onChangeText={(val) => setNewPincodeInput(val.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="numeric"
-                maxLength={6}
-                placeholder="Pincode"
-                placeholderTextColor="#94A3B8"
-                autoComplete="postal-code"
-                textContentType="postalCode"
-              />
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.btnCancel}
+                onPress={() => {
+                  setAddressModalVisible(false);
+                }}
+              >
+                <Text style={styles.btnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSavePhone}
+                onPress={handleSaveAddressOnly}
+                disabled={savingAddress}
+              >
+                {savingAddress ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.btnSavePhoneText}>Save Address</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
 
-          <View style={styles.modalActionsRow}>
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => {
-                setAddressModalVisible(false);
-              }}
-            >
-              <Text style={styles.btnCancelText}>Cancel</Text>
-            </TouchableOpacity>
+      {/* 📱 Dedicated Single Mobile Phone Number Edit Modal */}
+      <Modal visible={phoneModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>📱 Add Mobile Phone Number</Text>
+            <Text style={styles.modalSub}>
+              Enter your mobile phone number for order status updates, delivery rider calls & SMS alerts.
+            </Text>
 
-            <TouchableOpacity
-              style={styles.btnSavePhone}
-              onPress={handleSaveAddressOnly}
-              disabled={savingAddress}
-            >
-              {savingAddress ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.btnSavePhoneText}>Save Address</Text>
-              )}
-            </TouchableOpacity>
+            <TextInput
+              style={styles.modalInput}
+              value={newPhoneInput}
+              onChangeText={setNewPhoneInput}
+              keyboardType="phone-pad"
+              placeholder="e.g. +91 98765 43210"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.btnCancel}
+                onPress={() => {
+                  setPhoneModalVisible(false);
+                  setNewPhoneInput('');
+                }}
+              >
+                <Text style={styles.btnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSavePhone}
+                onPress={handleSavePhoneOnly}
+                disabled={savingPhone}
+              >
+                {savingPhone ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.btnSavePhoneText}>Save Phone Number</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
-    {/* 📱 Dedicated Single Mobile Phone Number Edit Modal */}
-    <Modal visible={phoneModalVisible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>📱 Add Mobile Phone Number</Text>
-          <Text style={styles.modalSub}>
-            Enter your mobile phone number for order status updates, delivery rider calls & SMS alerts.
-          </Text>
-
-          <TextInput
-            style={styles.modalInput}
-            value={newPhoneInput}
-            onChangeText={setNewPhoneInput}
-            keyboardType="phone-pad"
-            placeholder="e.g. +91 98765 43210"
-            placeholderTextColor="#94A3B8"
-            autoFocus
-          />
-
-          <View style={styles.modalActionsRow}>
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => {
-                setPhoneModalVisible(false);
-                setNewPhoneInput('');
-              }}
-            >
-              <Text style={styles.btnCancelText}>Cancel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.btnSavePhone}
-              onPress={handleSavePhoneOnly}
-              disabled={savingPhone}
-            >
-              {savingPhone ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.btnSavePhoneText}>Save Phone Number</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-
-    <CustomerBottomNav activeTab="Profile" navigation={navigation} />
-  </SafeAreaView>
-);
+      <CustomerBottomNav activeTab="Profile" navigation={navigation} />
+    </SafeAreaView>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -817,16 +919,30 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.primary,
   },
-  activeBadgeDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#22C55E',
+  cameraIconBadge: {
     position: 'absolute',
-    bottom: 2,
-    right: 4,
-    borderWidth: 2.5,
-    borderColor: COLORS.white,
+    bottom: 0,
+    right: -2,
+    backgroundColor: '#EA580C',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 45,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userNameText: {
     fontSize: FONT_SIZE.lg,

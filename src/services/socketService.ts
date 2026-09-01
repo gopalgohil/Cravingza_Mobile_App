@@ -42,3 +42,14 @@ export const subscribeToOrderUpdates = (callback: (orderData: any) => void) => {
     s.off('new_order_placed', callback);
   };
 };
+
+export const subscribeToMaintenanceUpdates = (callback: (data: any) => void) => {
+  const s = getSocket();
+  s.on('maintenance_mode_updated', callback);
+  s.on('settings_updated', callback);
+
+  return () => {
+    s.off('maintenance_mode_updated', callback);
+    s.off('settings_updated', callback);
+  };
+};

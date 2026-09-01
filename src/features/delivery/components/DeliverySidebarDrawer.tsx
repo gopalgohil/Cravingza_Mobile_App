@@ -14,6 +14,7 @@ interface DeliverySidebarDrawerProps {
   currentUser?: any;
   isOnline: boolean;
   onToggleOnline: (val: boolean) => void;
+  onOpenAvatarPicker?: () => void;
 }
 
 const renderDrawerNavIcon = (name: string, active: boolean) => {
@@ -66,6 +67,7 @@ export const DeliverySidebarDrawer: React.FC<DeliverySidebarDrawerProps> = ({
   currentUser,
   isOnline,
   onToggleOnline,
+  onOpenAvatarPicker,
 }) => {
   const riderName = currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Delivery Partner');
   const riderEmail = currentUser?.email || 'partner@cravingza.com';
@@ -93,7 +95,23 @@ export const DeliverySidebarDrawer: React.FC<DeliverySidebarDrawerProps> = ({
               </View>
 
               <View style={styles.userCard}>
-                <Image source={{ uri: riderAvatar }} style={styles.avatar} />
+                <TouchableOpacity
+                  style={{ position: 'relative' }}
+                  onPress={() => {
+                    if (onOpenAvatarPicker) {
+                      onOpenAvatarPicker();
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Image source={{ uri: riderAvatar }} style={styles.avatar} />
+                  <View style={styles.drawerCameraBadge}>
+                    <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <Circle cx="12" cy="13" r="4" />
+                    </Svg>
+                  </View>
+                </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.riderName} numberOfLines={1}>
                     {riderName}
@@ -211,6 +229,19 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     borderWidth: 2,
     borderColor: '#EA580C',
+  },
+  drawerCameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#EA580C',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   riderName: {
     fontSize: FONT_SIZE.sm + 1,

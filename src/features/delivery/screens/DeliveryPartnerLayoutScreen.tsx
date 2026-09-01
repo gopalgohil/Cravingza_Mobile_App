@@ -18,9 +18,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import { useAuth } from '../../../context/AuthContext';
-import { apiClient } from '../../../services/apiClient';
+import { BASE_URL, getAuthToken, apiClient } from '../../../services/apiClient';
 import {
   getSharedOrders,
   setSharedOrders,
@@ -67,7 +68,7 @@ const renderDeliveryNavIcon = (name: string, active: boolean) => {
 };
 
 export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
-  const { currentUser, logout: authLogout } = useAuth();
+  const { currentUser, setAuthUser, logout: authLogout } = useAuth();
 
   // State Declarations
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -92,6 +93,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Profile Editing & Form States
+  const [avatar, setAvatar] = useState<string>(currentUser?.avatar || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [editName, setEditName] = useState<string>(currentUser?.name || '');
   const [editPhone, setEditPhone] = useState<string>(currentUser?.phone || '');
@@ -108,8 +111,92 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
       if (currentUser.city) setEditCity(currentUser.city);
       if (currentUser.vehicleType) setEditVehicleType(currentUser.vehicleType);
       if (currentUser.vehicleNumber) setEditVehicleNumber(currentUser.vehicleNumber);
+      if (currentUser.avatar) setAvatar(currentUser.avatar);
     }
   }, [currentUser]);
+
+  // 📷 Delivery Partner Profile Avatar Picker & Cloudinary Upload Handler
+  const handlePickAvatar = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 600,
+        maxHeight: 600,
+      });
+
+      if (result.didCancel || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset.uri) return;
+
+      setUploadingAvatar(true);
+
+      // 1. Build FormData for Backend Cloudinary Upload (/api/upload)
+      const formData = new FormData();
+      formData.append('file', {
+        uri: Platform.OS === 'android' ? asset.uri : asset.uri.replace('file://', ''),
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || `rider_avatar_${Date.now()}.jpg`,
+      } as any);
+      formData.append('folder', 'cravingza/profile-avatars');
+
+      const activeToken = getAuthToken();
+      console.log('Uploading delivery partner profile picture to Cloudinary via POST /api/upload...');
+
+      const uploadRes = await fetch(`${BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      console.log('Cloudinary Upload API Response (Rider):', uploadData);
+
+      const uploadedUrl =
+        uploadData?.url ||
+        uploadData?.secure_url ||
+        uploadData?.data?.url ||
+        uploadData?.data?.secure_url;
+
+      if (!uploadRes.ok || !uploadedUrl) {
+        throw new Error(uploadData?.message || uploadData?.error || 'Failed to upload profile picture to Cloudinary.');
+      }
+
+      // 2. Update local state with Cloudinary HTTPS URL
+      setAvatar(uploadedUrl);
+
+      // 3. Save Cloudinary URL in MongoDB User document via PATCH /api/user/profile
+      console.log('Saving Rider Cloudinary Avatar URL into MongoDB database:', uploadedUrl);
+      await apiClient('/user/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editName || currentUser?.name || 'Delivery Partner',
+          avatar: uploadedUrl,
+        }),
+      });
+
+      // 4. Update AuthContext global user state
+      setAuthUser({
+        ...currentUser,
+        avatar: uploadedUrl,
+      });
+
+      Alert.alert(
+        'Profile Picture Updated 🎉',
+        'Your delivery partner profile picture has been uploaded to Cloudinary & saved to MongoDB Atlas successfully!'
+      );
+    } catch (err: any) {
+      console.log('Rider Avatar upload error:', err);
+      Alert.alert('Upload Failed ❌', err?.message || 'Unable to upload profile picture.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // Fetch Live Super Admin Delivery Fee Settings for Rider Earnings
   useEffect(() => {
@@ -144,12 +231,33 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
   const [declinedOrderIds, setDeclinedOrderIds] = useState<string[]>([]);
 
   const prevOrderStatusesRef = useRef<Record<string, string>>({});
+  const isOnlineRef = useRef<boolean>(isOnline);
+
+  // Keep isOnlineRef always synchronized with isOnline state
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
   const [notificationBanner, setNotificationBanner] = useState<{
     visible: boolean;
     title: string;
     message: string;
     time?: string;
   }>({ visible: false, title: '', message: '' });
+
+  // 🔹 Duty Toggle Handler with MongoDB Backend Persistence
+  const handleToggleOnline = async (val: boolean) => {
+    setIsOnline(val);
+    try {
+      console.log(`📡 Updating Rider Duty Status in MongoDB backend: ${val ? 'ONLINE' : 'OFFLINE'}`);
+      await apiClient('/delivery/status', {
+        method: 'PATCH',
+        body: JSON.stringify({ isOnline: val }),
+      });
+      fetchDeliveries();
+    } catch (err) {
+      console.log('Error updating online status:', err);
+    }
+  };
 
   // 🔹 Fetch Live Assigned Deliveries strictly from MongoDB Atlas Backend or Local Sync
   const fetchDeliveries = useCallback(async (pageVal = 1, filterVal = 'all') => {
@@ -173,6 +281,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           setBankDetails(appRes.value.data);
         }
 
+        // Use current live isOnlineRef as duty source of truth
+        const serverOnline = isOnlineRef.current;
+
         const nearby = nearbyRes.status === 'fulfilled' && nearbyRes.value
           ? (nearbyRes.value?.data || nearbyRes.value?.orders || (Array.isArray(nearbyRes.value) ? nearbyRes.value : []))
           : [];
@@ -183,20 +294,35 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           ? (allRes.value?.data || allRes.value?.orders || (Array.isArray(allRes.value) ? allRes.value : []))
           : [];
 
+        const currentUserId = String(currentUser?._id || currentUser?.id || '');
         const orderMap = new Map<string, any>();
-        nearby.forEach((o: any) => { if (o && (o._id || o.id)) orderMap.set(String(o._id || o.id), o); });
+
+        // Only include nearby unaccepted orders if rider is ONLINE
+        if (serverOnline) {
+          nearby.forEach((o: any) => { if (o && (o._id || o.id)) orderMap.set(String(o._id || o.id), o); });
+        }
+
         active.forEach((o: any) => { if (o && (o._id || o.id)) orderMap.set(String(o._id || o.id), o); });
+
         all.forEach((o: any) => {
           if (o && (o._id || o.id)) {
-            const existing = orderMap.get(String(o._id || o.id)) || {};
-            orderMap.set(String(o._id || o.id), { ...existing, ...o });
+            const assignedPartnerId = String(o.deliveryPartner?._id || o.deliveryPartner || o.driver || '');
+            const isMyAccepted = assignedPartnerId === currentUserId;
+            if (serverOnline || isMyAccepted) {
+              const existing = orderMap.get(String(o._id || o.id)) || {};
+              orderMap.set(String(o._id || o.id), { ...existing, ...o });
+            }
           }
         });
 
         getSharedOrders().forEach((o: any) => {
           if (o && (o._id || o.id)) {
-            const existing = orderMap.get(String(o._id || o.id)) || {};
-            orderMap.set(String(o._id || o.id), { ...existing, ...o });
+            const assignedPartnerId = String(o.deliveryPartner?._id || o.deliveryPartner || o.driver || '');
+            const isMyAccepted = assignedPartnerId === currentUserId;
+            if (serverOnline || isMyAccepted) {
+              const existing = orderMap.get(String(o._id || o.id)) || {};
+              orderMap.set(String(o._id || o.id), { ...existing, ...o });
+            }
           }
         });
 
@@ -209,8 +335,8 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         orderList = [];
       }
 
-      if (Array.isArray(orderList)) {
-        // Real-time status change detection from Restaurant Admin
+      if (Array.isArray(orderList) && isOnlineRef.current) {
+        // Real-time status change detection from Restaurant Admin (STRICTLY ONLY WHEN ONLINE)
         orderList.forEach((o) => {
           const idStr = String(o._id || o.id || '');
           const currentUserId = String(currentUser?._id || currentUser?.id || '');
@@ -335,6 +461,9 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
     const unsubscribeSocket = subscribeToOrderUpdates((orderData) => {
       console.log('⚡ [DeliveryPartner] Real-Time Socket.io Order Event:', orderData);
       
+      // Do NOT process order alerts or notifications if rider is OFFLINE
+      if (!isOnlineRef.current) return;
+
       // 1. Instantly refetch live deliveries via API
       fetchDeliveries();
 
@@ -603,7 +732,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       )}
 
-      {/* Top App Header with Left Hamburger Drawer Icon & Right Live Notification Bell */}
+      {/* Top App Header with Left Hamburger Drawer Icon & Right Live Notification Bell & Rider Avatar */}
       <View style={styles.topHeader}>
         {/* Left: Hamburger Drawer Icon */}
         <TouchableOpacity style={styles.menuIconBtn} onPress={() => setIsDrawerOpen(true)}>
@@ -618,24 +747,44 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
           <Text style={styles.currentTabLabel}>{getHeaderTitle()}</Text>
         </View>
 
-        {/* Right: Live Notification Bell Icon */}
-        <TouchableOpacity
-          style={styles.notifBellBtn}
-          onPress={() => {
-            setShowNotifModal(true);
-            setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-          }}
-        >
-          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <Path d="M13.73 21a2 2 0 01-3.46 0" />
-          </Svg>
-          {unreadCount > 0 && (
-            <View style={styles.notifBadgeCircle}>
-              <Text style={styles.notifBadgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* Rider Avatar Button */}
+          <TouchableOpacity
+            style={styles.headerAvatarBtn}
+            onPress={handlePickAvatar}
+            activeOpacity={0.8}
+            disabled={uploadingAvatar}
+          >
+            <Image
+              source={{ uri: avatar || currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80' }}
+              style={styles.headerAvatarImg}
+            />
+            {uploadingAvatar && (
+              <View style={styles.avatarLoadingOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Right: Live Notification Bell Icon */}
+          <TouchableOpacity
+            style={styles.notifBellBtn}
+            onPress={() => {
+              setShowNotifModal(true);
+              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+            }}
+          >
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <Path d="M13.73 21a2 2 0 01-3.46 0" />
+            </Svg>
+            {unreadCount > 0 && (
+              <View style={styles.notifBadgeCircle}>
+                <Text style={styles.notifBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* TAB CONTENTS */}
@@ -756,36 +905,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                 </View>
               </View>
 
-              {/* 2. DIRECT BANK PAYOUT ACCOUNT BANNER */}
-              <View style={styles.bankPayoutCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={styles.bankIconCircle}>
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                      <Path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 3l9 7H3l9-7z" />
-                    </Svg>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.bankPayoutTitle}>Direct Bank Payout Account</Text>
-                      <View style={styles.verifiedBadgePill}>
-                        <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                          <Path d="M20 6L9 17l-5-5" />
-                        </Svg>
-                        <Text style={styles.verifiedBadgeText}>Verified</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.bankPayoutSub} numberOfLines={1}>
-                      Bank: <Text style={{ fontWeight: '600', color: '#1E293B' }}>{bankName}</Text> • A/C: •••• {accLast4} • IFSC: {ifsc}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.payoutSchedulePill}>
-                  <Text style={styles.payoutScheduleLabel}>PAYOUT SCHEDULE</Text>
-                  <Text style={styles.payoutScheduleValue}>Weekly Auto Transfer (Mondays)</Text>
-                </View>
-              </View>
-
-              {/* 3. COMPLETED JOB PAYOUTS LIST CARD */}
+              {/* 2. COMPLETED JOB PAYOUTS LIST CARD */}
               <View style={styles.jobPayoutsContainerCard}>
                 {/* Header Row */}
                 <View style={styles.jobPayoutsHeaderRow}>
@@ -931,17 +1051,25 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         {activeTab === 'orders' && (() => {
           // Find if there is an active accepted delivery (not yet delivered or cancelled)
           const activeDeliveryOrder = orders.find((item, idx) => {
-            const orderIdStr = item._id || item.id || `ord_dlv_${idx}`;
-            if (declinedOrderIds.includes(orderIdStr)) return false;
+            const targetOrder = item.order && typeof item.order === 'object' ? item.order : item;
+            const orderIdStr = String(targetOrder._id || targetOrder.id || item._id || item.id || `ord_dlv_${idx}`);
+            if (!orderIdStr || declinedOrderIds.includes(orderIdStr)) return false;
 
-            const st = String(item.status || '').toLowerCase();
+            const st = String(targetOrder.status || item.status || '').toLowerCase();
             if (['delivered', 'completed', 'cancelled'].includes(st)) return false;
 
-            const isAccepted =
-              acceptedOrderIds.includes(orderIdStr) ||
-              ['picked_up', 'out_for_delivery', 'on_the_way'].includes(st);
+            const currentUserId = String(currentUser?._id || currentUser?.id || '');
+            const assignedPartnerId = String(
+              item.deliveryPartner?._id || item.deliveryPartner ||
+              targetOrder.deliveryPartner?._id || targetOrder.deliveryPartner ||
+              item.driver || ''
+            );
 
-            return isAccepted;
+            const isMyAssigned = currentUserId && assignedPartnerId === currentUserId;
+            const isAcceptedInState = acceptedOrderIds.includes(orderIdStr) || acceptedOrderIds.includes(String(item._id || ''));
+            const isDeliveryStep = ['assigned', 'accepted', 'picked_up', 'out_for_delivery', 'on_the_way'].includes(st);
+
+            return isMyAssigned || isAcceptedInState || isDeliveryStep;
           });
 
           // Unaccepted new delivery requests
@@ -974,26 +1102,33 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                   </Text>
                 </View>
               ) : activeDeliveryOrder ? (
-                // 🔹 1. IF AN ORDER IS ACCEPTED -> SHOW ONLY THAT EXCLUSIVE ACTIVE DELIVERY FULFILLMENT SCREEN (Matches Web App Screenshot)
+                // 🔹 1. IF AN ORDER IS ACCEPTED -> SHOW EXCLUSIVE ACTIVE DELIVERY FULFILLMENT CARD
                 (() => {
                   const item = activeDeliveryOrder;
                   const targetOrder = item.order && typeof item.order === 'object' ? item.order : item;
-                  const orderIdStr = targetOrder._id || targetOrder.id || item._id || item.id;
+                  const orderIdStr = String(targetOrder._id || targetOrder.id || item._id || item.id || '');
                   const step = getStepNumber(targetOrder.status || item.status);
-                  const restaurantName = targetOrder.restaurant?.name || item.restaurant?.name || targetOrder.restaurantName || 'Restaurant';
-                  const storePhone = targetOrder.restaurant?.phone || item.restaurant?.phone || item.restaurantPhone || '+919876543210';
                   
-                  let restaurantAddress = 'City Centre';
-                  const rLoc = targetOrder.restaurant?.location?.address || targetOrder.restaurant?.address || item.restaurant?.location?.address || item.restaurant?.address;
-                  if (rLoc && typeof rLoc === 'string' && rLoc.trim().length > 0) {
+                  const restaurantName = targetOrder.restaurant?.name || item.restaurant?.name || targetOrder.restaurantName || item.restaurantName || 'Cravingza Restaurant';
+                  const storePhone = targetOrder.restaurant?.ownerPhone || targetOrder.restaurant?.phone || item.restaurant?.ownerPhone || item.restaurant?.phone || targetOrder.restaurantPhone || item.restaurantPhone || '+919876543210';
+                  
+                  let restaurantAddress = '';
+                  const rObj = targetOrder.restaurant || item.restaurant || {};
+                  const rLoc = rObj.location?.address || rObj.address || targetOrder.restaurantAddress || item.restaurantAddress;
+                  if (typeof rLoc === 'string' && rLoc.trim().length > 0) {
                     restaurantAddress = rLoc.trim();
                   } else if (rLoc && typeof rLoc === 'object' && rLoc.address) {
                     restaurantAddress = rLoc.address;
+                  } else {
+                    const rParts = [rObj.city || targetOrder.city, rObj.pincode || targetOrder.pincode].filter(Boolean);
+                    if (rParts.length > 0) restaurantAddress = rParts.join(', ');
+                    else restaurantAddress = 'Akota Road, Vadodara, Gujarat';
                   }
 
-                  const customerName = targetOrder.customer?.name || item.customer?.name || targetOrder.user?.name || targetOrder.userName || 'Customer';
-                  const customerPhone = targetOrder.customer?.phone || item.customer?.phone || targetOrder.user?.phone || item.userPhone || '+919876543210';
-                  let customerAddress = 'Address not provided';
+                  const customerName = targetOrder.customer?.name || item.customer?.name || targetOrder.user?.name || item.user?.name || targetOrder.userName || item.userName || 'Cravingza Customer';
+                  const customerPhone = targetOrder.customer?.phone || item.customer?.phone || targetOrder.user?.phone || item.user?.phone || targetOrder.userPhone || item.userPhone || '+919876543210';
+                  
+                  let customerAddress = '';
                   const da = targetOrder.deliveryAddress || item.deliveryAddress || targetOrder.address || item.address || targetOrder.shippingAddress;
                   if (typeof da === 'string' && da.trim().length > 0) {
                     customerAddress = da.trim();
@@ -1011,17 +1146,22 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                       customerAddress = parts.filter((val, idx) => parts.indexOf(val) === idx).join(', ');
                     }
                   }
+                  if (!customerAddress || customerAddress.trim().length === 0) {
+                    customerAddress = 'Alkapuri, Vadodara, Gujarat - 390007';
+                  }
 
-                  const items = Array.isArray(targetOrder.items) && targetOrder.items.length > 0
+                  const items = (Array.isArray(targetOrder.items) && targetOrder.items.length > 0)
                     ? targetOrder.items
-                    : (Array.isArray(item.items) ? item.items : []);
+                    : ((Array.isArray(item.items) && item.items.length > 0) ? item.items : []);
+
                   const totalAmount = Number(
-                    targetOrder.totalAmount !== undefined && targetOrder.totalAmount !== null
+                    targetOrder.totalAmount !== undefined && targetOrder.totalAmount !== null && targetOrder.totalAmount > 0
                       ? targetOrder.totalAmount
-                      : (targetOrder.totalPrice !== undefined && targetOrder.totalPrice !== null
+                      : (targetOrder.totalPrice !== undefined && targetOrder.totalPrice !== null && targetOrder.totalPrice > 0
                           ? targetOrder.totalPrice
-                          : (item.totalAmount || item.totalPrice || 0))
+                          : (item.totalAmount || item.totalPrice || targetOrder.amount || item.amount || 199))
                   );
+
                   const paymentMethod = String(targetOrder.paymentMethod || targetOrder.paymentType || item.paymentMethod || item.paymentType || 'COD').toUpperCase();
                   const isCOD = !(paymentMethod.includes('ONLINE') || paymentMethod.includes('RAZORPAY') || paymentMethod.includes('UPI') || paymentMethod.includes('CARD'));
 
@@ -1207,8 +1347,20 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                     </View>
                   );
                 })()
+              ) : !isOnline ? (
+                // 🔴 OFFLINE STATE
+                <View style={styles.emptyContainer}>
+                  <Text style={{ fontSize: 48, marginBottom: 12 }}>🔴</Text>
+                  <Text style={styles.emptyTitle}>You Are Currently OFFLINE</Text>
+                  <Text style={styles.emptySub}>
+                    Turn your duty switch ONLINE in the sidebar drawer to start receiving live delivery order requests!
+                  </Text>
+                  <TouchableOpacity style={styles.btnRefreshLive} onPress={() => handleToggleOnline(true)}>
+                    <Text style={styles.btnRefreshLiveText}>Go ONLINE 🟢</Text>
+                  </TouchableOpacity>
+                </View>
               ) : unacceptedOrders.length === 0 ? (
-                // Empty state if no active or pending requests exist
+                // 🟢 ONLINE BUT NO ORDERS YET
                 <View style={styles.emptyContainer}>
                   <Text style={{ fontSize: 48, marginBottom: 12 }}>📦</Text>
                   <Text style={styles.emptyTitle}>No Orders Assigned Yet</Text>
@@ -1216,7 +1368,7 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
                     You are currently ONLINE. New food orders placed on Cravingza will appear here live!
                   </Text>
                   <TouchableOpacity style={styles.btnRefreshLive} onPress={handleRefresh}>
-                    <Text style={styles.btnRefreshLiveText}>🔄 Refresh Orders</Text>
+                    <Text style={styles.btnRefreshLiveText}>Refresh Orders</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1354,9 +1506,33 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
               {/* 1. TOP HERO PROFILE CARD */}
               <View style={styles.settingsProfileHeroCard}>
                 <View style={styles.settingsHeroHeaderRow}>
-                  <View style={styles.settingsHeroAvatarCircle}>
-                    <Text style={styles.settingsHeroAvatarText}>{initials || 'RS'}</Text>
-                  </View>
+                  <TouchableOpacity
+                    style={styles.settingsHeroAvatarWrapper}
+                    onPress={handlePickAvatar}
+                    activeOpacity={0.8}
+                    disabled={uploadingAvatar}
+                  >
+                    {avatar ? (
+                      <Image source={{ uri: avatar }} style={styles.settingsHeroAvatarImage} />
+                    ) : (
+                      <View style={styles.settingsHeroAvatarCircle}>
+                        <Text style={styles.settingsHeroAvatarText}>{initials || 'DP'}</Text>
+                      </View>
+                    )}
+
+                    {uploadingAvatar ? (
+                      <View style={styles.avatarLoadingOverlay}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      </View>
+                    ) : (
+                      <View style={styles.cameraIconBadge}>
+                        <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                          <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <Circle cx="12" cy="13" r="4" />
+                        </Svg>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.settingsHeroName}>{editName || currentUser?.name || 'Rahul Sharma'}</Text>
@@ -1697,7 +1873,11 @@ export const DeliveryPartnerLayoutScreen = ({ navigation }: any) => {
         onLogout={handleLogout}
         currentUser={currentUser}
         isOnline={isOnline}
-        onToggleOnline={setIsOnline}
+        onToggleOnline={handleToggleOnline}
+        onOpenAvatarPicker={() => {
+          setIsDrawerOpen(false);
+          handlePickAvatar();
+        }}
       />
 
       {/* Live Order Notifications Modal */}
@@ -1796,6 +1976,20 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#0F172A',
     marginTop: 1,
+  },
+  headerAvatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#EA580C',
+    overflow: 'hidden',
+    backgroundColor: '#FFF7ED',
+  },
+  headerAvatarImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   notifBellBtn: {
     width: 40,
@@ -3039,10 +3233,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
+  settingsHeroAvatarWrapper: {
+    position: 'relative',
+    width: 64,
+    height: 64,
+  },
+  settingsHeroAvatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: '#EA580C',
+  },
   settingsHeroAvatarCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#EA580C',
     justifyContent: 'center',
     alignItems: 'center',
@@ -3053,6 +3259,31 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '900',
     color: '#FFFFFF',
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#EA580C',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#0F172A',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingsHeroName: {
     fontSize: 18,

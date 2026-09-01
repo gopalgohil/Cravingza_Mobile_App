@@ -231,11 +231,12 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    justifyContent: 'space-between',
+    rowGap: 10,
     marginBottom: SPACING.xs,
   },
   metricCard: {
-    width: '48%',
+    width: '48.5%',
     borderRadius: 14,
     padding: SPACING.md,
     borderWidth: 1,

@@ -363,6 +363,21 @@ export const OwnerSettingsSkeleton = () => (
   </View>
 );
 
+// 🔔 10. Customer Notification Card Skeleton
+export const NotificationCardSkeleton = () => (
+  <View style={styles.notifSkeletonCard}>
+    <SkeletonPlaceholder width={44} height={44} borderRadius={22} style={{ marginRight: 12 }} />
+    <View style={{ flex: 1, gap: 8 }}>
+      <View style={styles.rowBetween}>
+        <SkeletonPlaceholder width="60%" height={16} borderRadius={6} />
+        <SkeletonPlaceholder width="22%" height={12} borderRadius={4} />
+      </View>
+      <SkeletonPlaceholder width="90%" height={14} borderRadius={4} />
+      <SkeletonPlaceholder width="45%" height={12} borderRadius={4} style={{ marginTop: 2 }} />
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   skeleton: {
     backgroundColor: '#E2E8F0',
@@ -412,6 +427,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  notifSkeletonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -422,4 +448,5 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 });
+
 
