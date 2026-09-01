@@ -36,9 +36,12 @@ export const RestaurantOwnerLayoutScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isTabChanging, setIsTabChanging] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [restaurantName, setRestaurantName] = useState<string>(
-    currentUser?.restaurantName || currentUser?.restaurant || 'Burger Boss'
-  );
+  const initialName =
+    currentUser?.restaurantName ||
+    currentUser?.restaurant ||
+    (currentUser?.name && currentUser.name !== 'Platform User' ? currentUser.name : 'Restaurant');
+
+  const [restaurantName, setRestaurantName] = useState<string>(initialName);
 
   const handleSwitchTab = (tabId: string) => {
     setIsDrawerOpen(false);
@@ -65,14 +68,20 @@ export const RestaurantOwnerLayoutScreen = ({ navigation }: any) => {
     const fetchOwnerRestaurantDetails = async () => {
       try {
         const res = await getOwnerDashboardStatsApi();
-        const name = res?.data?.restaurantName || res?.restaurantName || res?.data?.name || res?.name;
-        if (name) {
+        const name = res?.data?.restaurantName || res?.restaurantName || res?.data?.name || res?.name || res?.data?.restaurant?.name;
+        if (name && name !== 'Burger Boss') {
           setRestaurantName(name);
+        } else if (currentUser?.name && currentUser.name !== 'Platform User') {
+          setRestaurantName(currentUser.name);
         }
-      } catch (e) {}
+      } catch (e) {
+        if (currentUser?.name && currentUser.name !== 'Platform User') {
+          setRestaurantName(currentUser.name);
+        }
+      }
     };
     fetchOwnerRestaurantDetails();
-  }, []);
+  }, [currentUser]);
 
   // 🔹 Real-Time Auto-Polling (every 8 seconds) for Incoming Customer Orders
   React.useEffect(() => {

@@ -106,12 +106,14 @@ export const RestaurantSidebarDrawer: React.FC<RestaurantSidebarDrawerProps> = (
                   style={styles.customerSiteBtn}
                   onPress={() => {
                     onClose();
-                    onNavigateCustomerSite();
+                    if (onNavigateCustomerSite) {
+                      onNavigateCustomerSite();
+                    }
                   }}
                   activeOpacity={0.85}
                 >
                   <OwnerStorefrontIcon color="#9A3412" size={20} />
-                  <Text style={styles.customerSiteBtnText}>Customer Site</Text>
+                  <Text style={styles.customerSiteBtnText}>🛍️ Customer Site</Text>
                 </TouchableOpacity>
               )}
 

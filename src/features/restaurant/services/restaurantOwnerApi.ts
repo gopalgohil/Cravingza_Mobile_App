@@ -5,7 +5,7 @@ import { updateSharedOrderStatus, setSharedOrders } from '../../../services/orde
 // 1. Fetch Owner Dashboard Overview & Live Stats -> GET /api/orders/restaurant-owner/dashboard
 export const getOwnerDashboardStatsApi = async () => {
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Network timeout')), 3000)
+    setTimeout(() => reject(new Error('Network timeout')), 4000)
   );
 
   try {
@@ -14,15 +14,15 @@ export const getOwnerDashboardStatsApi = async () => {
         return await apiClient('/orders/restaurant-owner/dashboard');
       } catch (err) {
         try {
-          const liveRes = await apiClient('/restaurants/6a71cf8dab29fa8868772237');
-          const rest = liveRes?.data?.restaurant || liveRes?.restaurant;
-          if (rest) {
+          const liveRes = await apiClient('/restaurants/my-restaurant');
+          const rest = liveRes?.data?.restaurant || liveRes?.restaurant || liveRes?.data;
+          if (rest && rest.name) {
             return {
               success: true,
-              restaurantName: rest.name || 'Burger Boss',
+              restaurantName: rest.name,
               data: {
-                restaurantName: rest.name || 'Burger Boss',
-                name: rest.name || 'Burger Boss',
+                restaurantName: rest.name,
+                name: rest.name,
                 restaurant: rest,
                 isOpen: rest.isOpen ?? true,
                 totalEarnings: 8385.15,
@@ -42,7 +42,6 @@ export const getOwnerDashboardStatsApi = async () => {
     return {
       success: true,
       data: {
-        restaurantName: 'Burger Boss',
         totalEarnings: 8385.15,
         totalOrders: 32,
         activeKitchenOrders: 8,
@@ -197,26 +196,10 @@ export const getOwnerStoreDetailsApi = async () => {
     return await apiClient('/restaurants/my-restaurant');
   } catch (err) {
     try {
-      const res = await apiClient('/restaurants/6a71cf8dab29fa8868772237');
-      if (res?.data || res?.restaurant) {
-        return res;
-      }
-    } catch (e2) {}
-    return {
-      success: true,
-      data: {
-        restaurant: {
-          name: 'Burger Boss',
-          cuisine: 'Gourmet Smash Burgers & Sides',
-          phone: '+91 98765 43210',
-          email: 'owner@cravingza.com',
-          location: { address: '101 Burger Boulevard, Sector 18, Metro City', city: 'Metro City' },
-          openingTime: '10:00 AM',
-          closingTime: '11:00 PM',
-          isOpen: true,
-        },
-      },
-    };
+      return await apiClient('/restaurant-settings/profile');
+    } catch (e2) {
+      throw err;
+    }
   }
 };
 
