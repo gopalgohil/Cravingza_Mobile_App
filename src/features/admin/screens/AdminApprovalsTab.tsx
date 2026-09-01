@@ -231,7 +231,7 @@ export const AdminApprovalsTab = () => {
     const isApproved = item.approvalStatus === 'approved';
     const isRejected = item.approvalStatus === 'rejected';
 
-    const riderName = item.name || item.user?.name || 'Delivery Partner';
+    const riderName = item.user?.name || item.name || 'Delivery Partner';
     const city = item.city || 'Vadodara';
     const appliedDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '13 Aug';
 
@@ -244,9 +244,12 @@ export const AdminApprovalsTab = () => {
           setDetailModalVisible(true);
         }}
       >
-        {/* Top Header Row: Rider Name & Status Badge */}
+        {/* Top Header Row: Delivery Partner Badge & Rider Name */}
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.itemTitle} numberOfLines={1}>{riderName}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.applicationLabelSub}>DELIVERY PARTNER APPLICATION</Text>
+            <Text style={styles.itemTitle} numberOfLines={1}>{riderName}</Text>
+          </View>
           <View style={[styles.statusBadge, isApproved && styles.statusBadgeApproved, isRejected && styles.statusBadgeRejected]}>
             <Text style={[styles.statusText, isApproved && styles.statusTextApproved, isRejected && styles.statusTextRejected]}>
               {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
@@ -258,7 +261,7 @@ export const AdminApprovalsTab = () => {
         <View style={styles.ownerInfoRow}>
           <View style={styles.metaItem}>
             <UserOutlineIcon size={14} color="#64748B" />
-            <Text style={styles.ownerMetaText} numberOfLines={1}>{item.vehicleType?.toUpperCase() || 'RIDER'}</Text>
+            <Text style={styles.ownerMetaText} numberOfLines={1}>{item.vehicleType?.toUpperCase() || 'MOTORCYCLE'}</Text>
           </View>
           <Text style={styles.metaDivider}>•</Text>
           <View style={styles.metaItem}>
@@ -333,32 +336,44 @@ export const AdminApprovalsTab = () => {
     selectedApplication?.gstCertificate ||
     'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80';
 
+  const dlDocUrl =
+    selectedApplication?.documents?.drivingLicense ||
+    selectedApplication?.drivingLicenseUrl ||
+    selectedApplication?.drivingLicense ||
+    'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500&auto=format&fit=crop&q=80';
+
+  const aadhaarDocUrl =
+    selectedApplication?.documents?.aadhaarCard ||
+    selectedApplication?.aadhaarCardUrl ||
+    selectedApplication?.aadhaarCard ||
+    'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80';
+
   const ownerName =
+    selectedApplication?.user?.name ||
     selectedApplication?.ownerName ||
     selectedApplication?.owner?.name ||
     selectedApplication?.name ||
-    selectedApplication?.user?.name ||
-    'Vishal';
+    'Applicant';
 
   const ownerEmail =
+    selectedApplication?.user?.email ||
     selectedApplication?.ownerEmail ||
     selectedApplication?.owner?.email ||
     selectedApplication?.email ||
-    selectedApplication?.user?.email ||
     'applicant@cravingza.com';
 
   const ownerPhone =
+    selectedApplication?.user?.phone ||
     selectedApplication?.ownerPhone ||
     selectedApplication?.phone ||
     selectedApplication?.owner?.phone ||
-    selectedApplication?.user?.phone ||
-    '704105160';
+    'N/A';
 
   const addressLine =
     selectedApplication?.addressLine ||
     selectedApplication?.address ||
     selectedApplication?.location?.address ||
-    'C-18 harinagar flat, Vadodra';
+    (selectedApplication?.city ? `${selectedApplication.city}${selectedApplication.pincode ? ` - ${selectedApplication.pincode}` : ''}` : 'Vadodara');
 
   return (
     <>
@@ -391,10 +406,12 @@ export const AdminApprovalsTab = () => {
               <View style={styles.modalHeaderRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalSectionLabel}>
-                    {activeSubTab === 'restaurant' ? 'RESTAURANT DETAILS' : 'DELIVERY RIDER DETAILS'}
+                    {activeSubTab === 'restaurant' ? 'RESTAURANT DETAILS' : 'DELIVERY PARTNER APPLICATION'}
                   </Text>
                   <Text style={styles.modalDetailTitle}>
-                    {selectedApplication?.name || selectedApplication?.restaurantName || 'Punjabi dhaba'}
+                    {activeSubTab === 'restaurant'
+                      ? (selectedApplication?.name || selectedApplication?.restaurantName || 'Restaurant Application')
+                      : (selectedApplication?.user?.name || selectedApplication?.name || 'Delivery Partner Application')}
                   </Text>
                 </View>
 
@@ -403,7 +420,7 @@ export const AdminApprovalsTab = () => {
                 </TouchableOpacity>
               </View>
 
-              {/* Cover Photo Box */}
+              {/* Cover Photo Box (RESTAURANT ONLY) */}
               {activeSubTab === 'restaurant' && (
                 <View style={styles.coverBoxContainer}>
                   <Image source={{ uri: coverUrl }} style={styles.coverPhotoImg} resizeMode="cover" />
@@ -419,18 +436,24 @@ export const AdminApprovalsTab = () => {
                 </View>
               )}
 
-              {/* Cuisine Tags */}
-              <Text style={styles.subFieldLabel}>CUISINE & TAGS</Text>
-              <View style={styles.cuisineRow}>
-                {['Indian', 'Biryani', 'Fast Food'].map((tag, idx) => (
-                  <View key={idx} style={styles.cuisinePill}>
-                    <Text style={styles.cuisinePillText}>{tag}</Text>
+              {/* Cuisine Tags (RESTAURANT ONLY) */}
+              {activeSubTab === 'restaurant' && (
+                <>
+                  <Text style={styles.subFieldLabel}>CUISINE & TAGS</Text>
+                  <View style={styles.cuisineRow}>
+                    {(selectedApplication?.cuisines || ['Indian', 'Biryani', 'Fast Food']).map((tag: string, idx: number) => (
+                      <View key={idx} style={styles.cuisinePill}>
+                        <Text style={styles.cuisinePillText}>{tag}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
+                </>
+              )}
 
-              {/* Owner Contact Box - Exactly matching uploaded reference image */}
-              <Text style={styles.subFieldLabel}>OWNER CONTACT</Text>
+              {/* Contact Box */}
+              <Text style={styles.subFieldLabel}>
+                {activeSubTab === 'restaurant' ? 'OWNER CONTACT' : 'RIDER CONTACT INFORMATION'}
+              </Text>
               <View style={styles.contactGrayCard}>
                 <View style={styles.contactItemRow}>
                   <UserOutlineIcon size={20} color="#64748B" />
@@ -446,45 +469,109 @@ export const AdminApprovalsTab = () => {
                 </View>
               </View>
 
-              {/* Location Details - Matching reference image with outline pin icon */}
-              <Text style={styles.subFieldLabel}>LOCATION DETAILS</Text>
+              {/* Location Details */}
+              <Text style={styles.subFieldLabel}>
+                {activeSubTab === 'restaurant' ? 'LOCATION DETAILS' : 'SERVICE CITY & AREA'}
+              </Text>
               <View style={styles.locationDetailRow}>
                 <LocationPinOutlineIcon size={22} color="#64748B" />
                 <Text style={styles.locationValText}>{addressLine}</Text>
               </View>
 
-              {/* Business Credentials & Verification Documents */}
-              <Text style={[styles.subFieldLabel, { marginTop: 16 }]}>
-                BUSINESS CREDENTIALS & VERIFICATION DOCUMENTS
-              </Text>
-
-              <View style={styles.docBoxList}>
-                {/* Document 1: FSSAI */}
-                <TouchableOpacity
-                  style={styles.docRowBox}
-                  onPress={() => openImageZoom(fssaiUrl, 'FSSAI License')}
-                >
-                  <Image source={{ uri: fssaiUrl }} style={styles.docRowThumb} resizeMode="cover" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.docRowTitle}>📜 FSSAI License Document</Text>
-                    <Text style={styles.docRowSub}>Click to view high-res document</Text>
+              {/* Business Credentials & Verification Documents (DYNAMIC FROM MONGODB) */}
+              {activeSubTab === 'delivery' ? (
+                <>
+                  <Text style={[styles.subFieldLabel, { marginTop: 16 }]}>
+                    BUSINESS & VEHICLE CREDENTIALS
+                  </Text>
+                  <View style={styles.credentialsCard}>
+                    <View style={styles.credRow}>
+                      <Text style={styles.credLabel}>Vehicle Type:</Text>
+                      <Text style={styles.credVal}>{selectedApplication?.vehicleType?.toUpperCase() || 'MOTORCYCLE'}</Text>
+                    </View>
+                    <View style={styles.credRow}>
+                      <Text style={styles.credLabel}>Vehicle Number:</Text>
+                      <Text style={styles.credVal}>{selectedApplication?.vehicleNumber || 'GJ-06-XX-1234'}</Text>
+                    </View>
+                    <View style={styles.credRow}>
+                      <Text style={styles.credLabel}>City & Pincode:</Text>
+                      <Text style={styles.credVal}>{selectedApplication?.city || 'Vadodara'} {selectedApplication?.pincode ? `- ${selectedApplication.pincode}` : ''}</Text>
+                    </View>
+                    {selectedApplication?.bankDetails && (
+                      <View style={styles.credRow}>
+                        <Text style={styles.credLabel}>Bank Account:</Text>
+                        <Text style={styles.credVal}>
+                          {selectedApplication?.bankDetails?.bankName || 'Bank'} (Acc: {selectedApplication?.bankDetails?.accountNumber || '****'})
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.docViewLinkText}>View 👁️</Text>
-                </TouchableOpacity>
 
-                {/* Document 2: GST / Business Registry */}
-                <TouchableOpacity
-                  style={styles.docRowBox}
-                  onPress={() => openImageZoom(gstUrl, 'Business Registry Copy')}
-                >
-                  <Image source={{ uri: gstUrl }} style={styles.docRowThumb} resizeMode="cover" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.docRowTitle}>🧾 Business Registry Copy (GST)</Text>
-                    <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                  <Text style={[styles.subFieldLabel, { marginTop: 16 }]}>
+                    VERIFICATION DOCUMENTS (DL & AADHAAR)
+                  </Text>
+                  <View style={styles.docBoxList}>
+                    {/* Driving License */}
+                    <TouchableOpacity
+                      style={styles.docRowBox}
+                      onPress={() => openImageZoom(dlDocUrl, 'Driving License')}
+                    >
+                      <Image source={{ uri: dlDocUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docRowTitle}>🪪 Driving License Document</Text>
+                        <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                      </View>
+                      <Text style={styles.docViewLinkText}>View 👁️</Text>
+                    </TouchableOpacity>
+
+                    {/* Aadhaar Card */}
+                    <TouchableOpacity
+                      style={styles.docRowBox}
+                      onPress={() => openImageZoom(aadhaarDocUrl, 'Aadhaar Card')}
+                    >
+                      <Image source={{ uri: aadhaarDocUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docRowTitle}>🧾 Aadhaar / ID Card</Text>
+                        <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                      </View>
+                      <Text style={styles.docViewLinkText}>View 👁️</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.docViewLinkText}>View 👁️</Text>
-                </TouchableOpacity>
-              </View>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.subFieldLabel, { marginTop: 16 }]}>
+                    BUSINESS CREDENTIALS & VERIFICATION DOCUMENTS
+                  </Text>
+                  <View style={styles.docBoxList}>
+                    {/* Document 1: FSSAI */}
+                    <TouchableOpacity
+                      style={styles.docRowBox}
+                      onPress={() => openImageZoom(fssaiUrl, 'FSSAI License')}
+                    >
+                      <Image source={{ uri: fssaiUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docRowTitle}>📜 FSSAI License Document</Text>
+                        <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                      </View>
+                      <Text style={styles.docViewLinkText}>View 👁️</Text>
+                    </TouchableOpacity>
+
+                    {/* Document 2: GST / Business Registry */}
+                    <TouchableOpacity
+                      style={styles.docRowBox}
+                      onPress={() => openImageZoom(gstUrl, 'Business Registry Copy')}
+                    >
+                      <Image source={{ uri: gstUrl }} style={styles.docRowThumb} resizeMode="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docRowTitle}>🧾 Business Registry Copy (GST)</Text>
+                        <Text style={styles.docRowSub}>Click to view high-res document</Text>
+                      </View>
+                      <Text style={styles.docViewLinkText}>View 👁️</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
               {/* Action Buttons Footer (NO LEFT ICONS) */}
               {actionLoadingId === selectedApplication?._id ? (
@@ -598,11 +685,41 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
+  applicationLabelSub: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
   itemTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
     flex: 1,
+  },
+  credentialsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  credRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  credLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  credVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   ownerInfoRow: {
     flexDirection: 'row',
