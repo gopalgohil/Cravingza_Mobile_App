@@ -11,8 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
-import { getAdminUsersApi, updateUserStatusApi } from '../services/adminApi';
-
+import Svg, { Path, Circle } from 'react-native-svg';
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
 
 export const AdminUsersTab = () => {
@@ -149,14 +148,17 @@ export const AdminUsersTab = () => {
 
   const renderUserItem = ({ item }: { item: any }) => {
     const isBlocked = item.status === 'blocked';
-    const roleText =
-      item.role === 'restaurant_owner' || item.role === 'owner'
-        ? '🏪 Restaurant Owner'
-        : item.role === 'delivery_partner' || item.role === 'delivery'
-          ? '🛵 Delivery Partner'
-          : item.role === 'admin'
-            ? '🛡️ Super Admin'
-            : '👤 Customer';
+    const isOwner = item.role === 'restaurant_owner' || item.role === 'owner';
+    const isDelivery = item.role === 'delivery_partner' || item.role === 'delivery';
+    const isAdmin = item.role === 'admin';
+
+    const roleLabel = isOwner
+      ? 'Restaurant Owner'
+      : isDelivery
+        ? 'Delivery Partner'
+        : isAdmin
+          ? 'Super Admin'
+          : 'Customer';
 
     return (
       <View style={styles.card}>
@@ -169,11 +171,22 @@ export const AdminUsersTab = () => {
           <View style={{ flex: 1 }}>
             <Text style={styles.userName}>{item.name || 'Platform User'}</Text>
             <Text style={styles.userEmail}>{item.email}</Text>
-            <Text style={styles.userRole}>{roleText}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+                {isOwner ? (
+                  <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                ) : isDelivery ? (
+                  <Path d="M15 6h5l3 5v6h-2M9 17h6M5 17H3v-5l2-4h8v9" />
+                ) : (
+                  <Circle cx="12" cy="7" r="4" />
+                )}
+              </Svg>
+              <Text style={styles.userRole}>{roleLabel}</Text>
+            </View>
           </View>
           <View style={[styles.statusBadge, isBlocked ? styles.statusBlocked : styles.statusActive]}>
             <Text style={[styles.statusBadgeText, isBlocked ? styles.statusTextBlocked : styles.statusTextActive]}>
-              {isBlocked ? 'BLOCKED 🔒' : 'ACTIVE ✅'}
+              {isBlocked ? 'BLOCKED' : 'ACTIVE'}
             </Text>
           </View>
         </View>
@@ -181,7 +194,12 @@ export const AdminUsersTab = () => {
         <View style={styles.divider} />
 
         <View style={styles.cardFooter}>
-          <Text style={styles.phoneText}>📞 {item.phone || 'N/A'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+            </Svg>
+            <Text style={styles.phoneText}>{item.phone || 'N/A'}</Text>
+          </View>
 
           {actionLoadingId === item._id ? (
             <ActivityIndicator size="small" color={COLORS.primary} />
@@ -191,7 +209,7 @@ export const AdminUsersTab = () => {
               onPress={() => handleToggleUserStatus(item._id, item.name || 'User', item.status)}
             >
               <Text style={[styles.blockBtnText, isBlocked ? styles.unblockText : styles.blockText]}>
-                {isBlocked ? '🔓 Unblock' : '🔒 Block'}
+                {isBlocked ? 'Unblock' : 'Block'}
               </Text>
             </TouchableOpacity>
           )}
