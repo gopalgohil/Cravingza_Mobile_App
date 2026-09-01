@@ -573,9 +573,17 @@ export const AdminApprovalsTab = () => {
                 </>
               )}
 
-              {/* Action Buttons Footer (NO LEFT ICONS) */}
+              {/* Action Buttons / Status Banners Footer */}
               {actionLoadingId === selectedApplication?._id ? (
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
+              ) : selectedApplication?.approvalStatus === 'approved' ? (
+                <View style={styles.approvedStatusBanner}>
+                  <Text style={styles.approvedStatusText}>✓ Application Approved & Verified Partner</Text>
+                </View>
+              ) : selectedApplication?.approvalStatus === 'rejected' ? (
+                <View style={styles.rejectedStatusBanner}>
+                  <Text style={styles.rejectedStatusText}>✕ Application Rejected</Text>
+                </View>
               ) : (
                 <View style={styles.modalActionFooter}>
                   <TouchableOpacity
@@ -583,7 +591,7 @@ export const AdminApprovalsTab = () => {
                     onPress={() =>
                       handleReject(
                         selectedApplication?._id,
-                        selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
+                        selectedApplication?.user?.name || selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
                       )
                     }
                   >
@@ -595,7 +603,7 @@ export const AdminApprovalsTab = () => {
                     onPress={() =>
                       handleApprove(
                         selectedApplication?._id,
-                        selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
+                        selectedApplication?.user?.name || selectedApplication?.name || selectedApplication?.restaurantName || 'Partner'
                       )
                     }
                   >
@@ -1044,5 +1052,35 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     marginTop: 4,
+  },
+  approvedStatusBanner: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  approvedStatusText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  rejectedStatusBanner: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  rejectedStatusText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#B91C1C',
   },
 });
