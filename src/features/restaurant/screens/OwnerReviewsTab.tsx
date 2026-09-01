@@ -130,7 +130,7 @@ export const OwnerReviewsTab: React.FC = () => {
 
   // Filter & Calculate Metrics
   const filteredReviews = reviews.filter((r) => {
-    const custName = String(r.customerName || r.userName || r.user?.name || '').toLowerCase();
+    const custName = String(r.customer?.name || r.customerName || r.userName || r.user?.name || '').toLowerCase();
     const commentStr = String(r.comment || r.review || '').toLowerCase();
     const query = searchQuery.trim().toLowerCase();
 
@@ -193,18 +193,28 @@ export const OwnerReviewsTab: React.FC = () => {
   };
 
   const renderReviewItem = ({ item }: { item: any }) => {
-    const custName = item.customerName || item.userName || item.user?.name || 'Rohan Verma';
+    const custName =
+      item.customer?.name ||
+      item.customerName ||
+      item.userName ||
+      item.user?.name ||
+      'Anonymous Customer';
+
     const ratingVal = Number(item.rating || 5);
-    const commentStr = item.comment || item.review || 'nice';
+    const commentStr = item.comment || item.review || '';
     const formattedDate = formatDateWithYear(item.createdAt);
     const initials = getInitials(custName);
 
-    // Items Summary String matching Web App
-    const itemsListStr = Array.isArray(item.items) && item.items.length > 0
-      ? item.items.map((i: any) => `${i.quantity || 1}x ${i.name}`).join(', ')
-      : '1x Double Cheddar Bacon Smash, 1x Sweet Potato Waffle Fries';
+    // Dynamic Order Items & Total Amount extraction (checks populated item.order or item)
+    const orderObj = item.order || {};
+    const rawItems = orderObj.items || item.items || item.orderItems || [];
 
-    const totalAmt = item.totalAmount || item.totalPrice || item.price || 725.18;
+    const itemsListStr =
+      Array.isArray(rawItems) && rawItems.length > 0
+        ? rawItems.map((i: any) => `${i.quantity || 1}x ${i.name || i.title || 'Item'}`).join(', ')
+        : 'Delivered Order';
+
+    const totalAmt = orderObj.totalAmount ?? item.totalAmount ?? item.totalPrice ?? item.price ?? 0;
 
     return (
       <View style={styles.reviewCard}>

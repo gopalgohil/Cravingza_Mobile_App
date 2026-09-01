@@ -84,7 +84,7 @@ export const OrdersScreen = ({ navigation }: any) => {
         orderId: selectedOrderForReview?.id || selectedOrderForReview?._id,
         orderNumber: selectedOrderForReview?.orderNumber,
         items: selectedOrderForReview?.items || [],
-        totalAmount: selectedOrderForReview?.totalPrice || 725.18,
+        totalAmount: selectedOrderForReview?.totalPrice || selectedOrderForReview?.totalAmount || 0,
       });
 
       Alert.alert('Review Submitted! ⭐', 'Thank you for rating your order! Your feedback is now live on the restaurant portal.');
