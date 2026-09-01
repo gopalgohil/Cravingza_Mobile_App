@@ -161,10 +161,39 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
     { id: '2', name: 'Devakkumar', type: 'delivery_partner', submittedAt: '2026-07-29' },
   ];
 
-  const recentActivity = dashboardData?.recentActivity || [
-    { id: 'act-1', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: new Date() },
-    { id: 'act-2', message: 'New restaurant applied: "Urban Dhaba & Grill"', type: 'application', timestamp: new Date() },
+  const allFallbackActivities = [
+    { id: 'act-1', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T15:30:00Z' },
+    { id: 'act-2', message: 'New order placed by Rohan Verma - ₹1038.02', type: 'order', timestamp: '2026-09-01T15:15:00Z' },
+    { id: 'act-3', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T14:45:00Z' },
+    { id: 'act-4', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T14:30:00Z' },
+    { id: 'act-5', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T14:15:00Z' },
+    { id: 'act-6', message: 'New order placed by Rohan Verma - ₹1023.32', type: 'order', timestamp: '2026-09-01T13:50:00Z' },
+    { id: 'act-7', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T13:30:00Z' },
+    { id: 'act-8', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T13:10:00Z' },
+    { id: 'act-9', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T12:45:00Z' },
+    { id: 'act-10', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T12:30:00Z' },
+    { id: 'act-11', message: 'New restaurant applied: "Urban Dhaba & Grill"', type: 'application', timestamp: '2026-09-01T12:00:00Z' },
+    { id: 'act-12', message: 'New order placed by Priya Sharma - ₹450.00', type: 'order', timestamp: '2026-09-01T11:45:00Z' },
+    { id: 'act-13', message: 'New order placed by Amit Patel - ₹890.50', type: 'order', timestamp: '2026-09-01T11:30:00Z' },
+    { id: 'act-14', message: 'New order placed by Rohan Verma - ₹320.00', type: 'order', timestamp: '2026-09-01T11:15:00Z' },
+    { id: 'act-15', message: 'New order placed by Sneha Gupta - ₹1250.00', type: 'order', timestamp: '2026-09-01T10:50:00Z' },
+    { id: 'act-16', message: 'New order placed by Vikas Kumar - ₹540.00', type: 'order', timestamp: '2026-09-01T10:30:00Z' },
+    { id: 'act-17', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T10:10:00Z' },
+    { id: 'act-18', message: 'New order placed by Pooja Singh - ₹990.00', type: 'order', timestamp: '2026-09-01T09:45:00Z' },
+    { id: 'act-19', message: 'New order placed by Rahul Mehta - ₹760.00', type: 'order', timestamp: '2026-09-01T09:30:00Z' },
+    { id: 'act-20', message: 'New order placed by Rohan Verma - ₹684.18', type: 'order', timestamp: '2026-09-01T09:00:00Z' },
   ];
+
+  const recentActivity = dashboardData?.recentActivity || allFallbackActivities.slice((activityPage - 1) * 7, activityPage * 7);
+
+  const paginationMeta = dashboardData?.activityPagination || {
+    page: activityPage,
+    limit: 7,
+    totalItems: allFallbackActivities.length,
+    totalPages: Math.ceil(allFallbackActivities.length / 7),
+    hasNextPage: activityPage < Math.ceil(allFallbackActivities.length / 7),
+    hasPrevPage: activityPage > 1,
+  };
 
   if (loading && !refreshing) {
     return renderSkeleton();
@@ -400,31 +429,31 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ onNavigate
         {/* 🔹 Backend Pagination Controls */}
         <View style={styles.paginationRow}>
           <TouchableOpacity
-            style={[styles.pageBtn, (activityPage <= 1 || activityLoading) && styles.pageBtnDisabled]}
-            disabled={activityPage <= 1 || activityLoading}
+            style={[styles.pageBtn, (!paginationMeta.hasPrevPage || activityLoading) && styles.pageBtnDisabled]}
+            disabled={!paginationMeta.hasPrevPage || activityLoading}
             onPress={() => fetchDashboardStats(activityPage - 1, true)}
           >
-            <Text style={[styles.pageBtnText, (activityPage <= 1 || activityLoading) && styles.pageBtnTextDisabled]}>
+            <Text style={[styles.pageBtnText, (!paginationMeta.hasPrevPage || activityLoading) && styles.pageBtnTextDisabled]}>
               ‹ Previous
             </Text>
           </TouchableOpacity>
 
           <Text style={styles.pageIndicatorText}>
-            Page {dashboardData?.activityPagination?.page || activityPage} of {dashboardData?.activityPagination?.totalPages || 1}
+            Page {paginationMeta.page} of {paginationMeta.totalPages}
           </Text>
 
           <TouchableOpacity
             style={[
               styles.pageBtn,
-              (!dashboardData?.activityPagination?.hasNextPage || activityLoading) && styles.pageBtnDisabled,
+              (!paginationMeta.hasNextPage || activityLoading) && styles.pageBtnDisabled,
             ]}
-            disabled={!dashboardData?.activityPagination?.hasNextPage || activityLoading}
+            disabled={!paginationMeta.hasNextPage || activityLoading}
             onPress={() => fetchDashboardStats(activityPage + 1, true)}
           >
             <Text
               style={[
                 styles.pageBtnText,
-                (!dashboardData?.activityPagination?.hasNextPage || activityLoading) && styles.pageBtnTextDisabled,
+                (!paginationMeta.hasNextPage || activityLoading) && styles.pageBtnTextDisabled,
               ]}
             >
               Next ›
