@@ -9,11 +9,29 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { COLORS, SPACING, FONT_SIZE } from '../../../utils/theme';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { SkeletonPlaceholder } from '../../../components/ui/SkeletonPlaceholder';
-import { getAdminUsersApi, updateUserStatusApi } from '../services/adminApi';
+import { getAdminUsersApi, updateUserStatusApi, getAdminUserByIdApi } from '../services/adminApi';
+
+const formatJoinedDate = (dateStr: any) => {
+  if (!dateStr) return '01 Sept 2026';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '01 Sept 2026';
+    const day = d.getDate() < 10 ? `0${d.getDate()}` : `${d.getDate()}`;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  } catch (err) {
+    return '01 Sept 2026';
+  }
+};
 
 export const AdminUsersTab = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'customer' | 'owner' | 'delivery'>('all');
@@ -22,6 +40,32 @@ export const AdminUsersTab = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [counts, setCounts] = useState<{ customer?: number; owner?: number; delivery?: number; total?: number }>({});
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // 🔹 Modal State for Full Account Profile Details (Matching Design Image)
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [userStats, setUserStats] = useState<any | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  const handleOpenUserModal = async (userItem: any) => {
+    setSelectedUser(userItem);
+    setUserStats(null);
+    setIsModalVisible(true);
+    setModalLoading(true);
+    try {
+      const res = await getAdminUserByIdApi(userItem._id || userItem.id);
+      if (res?.data?.user) {
+        setSelectedUser(res.data.user);
+      }
+      if (res?.data?.stats) {
+        setUserStats(res.data.stats);
+      }
+    } catch (err: any) {
+      console.log('Error fetching user modal details:', err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -199,14 +243,20 @@ export const AdminUsersTab = () => {
           ? 'Super Admin'
           : 'Customer';
 
+    const avatarUrl = item.avatar || item.profilePic || item.image;
+
     return (
-      <View style={styles.card}>
+      <TouchableOpacity activeOpacity={0.85} onPress={() => handleOpenUserModal(item)} style={styles.card}>
         <View style={styles.cardHeader}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {item.name ? item.name.charAt(0).toUpperCase() : 'U'}
-            </Text>
-          </View>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {item.name ? item.name.charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.userName}>{item.name || 'Platform User'}</Text>
             <Text style={styles.userEmail}>{item.email}</Text>
@@ -240,20 +290,26 @@ export const AdminUsersTab = () => {
             <Text style={styles.phoneText}>{item.phone || 'N/A'}</Text>
           </View>
 
-          {actionLoadingId === item._id ? (
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          ) : (
-            <TouchableOpacity
-              style={[styles.blockBtn, isBlocked ? styles.unblockBtnStyle : styles.blockBtnStyle]}
-              onPress={() => handleToggleUserStatus(item._id, item.name || 'User', item.status)}
-            >
-              <Text style={[styles.blockBtnText, isBlocked ? styles.unblockText : styles.blockText]}>
-                {isBlocked ? 'Unblock' : 'Block'}
-              </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity style={styles.viewDetailsBtn} onPress={() => handleOpenUserModal(item)}>
+              <Text style={styles.viewDetailsBtnText}>View details ›</Text>
             </TouchableOpacity>
-          )}
+
+            {actionLoadingId === item._id ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <TouchableOpacity
+                style={[styles.blockBtn, isBlocked ? styles.unblockBtnStyle : styles.blockBtnStyle]}
+                onPress={() => handleToggleUserStatus(item._id, item.name || 'User', item.status)}
+              >
+                <Text style={[styles.blockBtnText, isBlocked ? styles.unblockText : styles.blockText]}>
+                  {isBlocked ? 'Unblock' : 'Block'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -261,25 +317,184 @@ export const AdminUsersTab = () => {
     return renderSkeleton();
   }
 
+  const avatarModalUrl = selectedUser?.avatar || selectedUser?.profilePic || selectedUser?.image;
+
   return (
-    <FlatList
-      data={users}
-      keyExtractor={(item) => item._id || item.id}
-      ListHeaderComponent={renderHeader}
-      renderItem={renderUserItem}
-      contentContainerStyle={styles.listContent}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />
-      }
-      ListEmptyComponent={
-        <View style={styles.emptyCard}>
-          <Text style={{ fontSize: 32 }}>👥</Text>
-          <Text style={styles.emptyTitle}>No Users Found</Text>
-          <Text style={styles.emptySub}>No accounts match the selected filter.</Text>
+    <>
+      <FlatList
+        data={users}
+        keyExtractor={(item, index) => item._id || item.id || `user-${index}`}
+        ListHeaderComponent={renderHeader}
+        renderItem={renderUserItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <Text style={{ fontSize: 32 }}>👥</Text>
+            <Text style={styles.emptyTitle}>No Users Found</Text>
+            <Text style={styles.emptySub}>No accounts match the selected filter.</Text>
+          </View>
+        }
+      />
+
+      {/* 🔹 FULL ACCOUNT PROFILE DETAILS MODAL DIALOG (MATCHING DESIGN IMAGE) */}
+      <Modal visible={isModalVisible} transparent animationType="fade" onRequestClose={() => setIsModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {/* Header */}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalSubtitle}>ACCOUNT PROFILE</Text>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {selectedUser?.name || 'Platform User'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setIsModalVisible(false)}>
+                <Text style={styles.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+              {modalLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading account details...</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Hero Profile Box */}
+                  <View style={styles.heroProfileBox}>
+                    {avatarModalUrl ? (
+                      <Image source={{ uri: avatarModalUrl }} style={styles.heroAvatarImg} />
+                    ) : (
+                      <View style={styles.heroAvatarCircle}>
+                        <Text style={styles.heroAvatarText}>
+                          {selectedUser?.name ? selectedUser.name.charAt(0).toUpperCase() : 'U'}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <View style={[styles.statusBadge, selectedUser?.status === 'blocked' ? styles.statusBlocked : styles.statusActive]}>
+                          <Text style={[styles.statusBadgeText, selectedUser?.status === 'blocked' ? styles.statusTextBlocked : styles.statusTextActive]}>
+                            {selectedUser?.status === 'blocked' ? 'BLOCKED' : 'ACTIVE'}
+                          </Text>
+                        </View>
+                        <View style={styles.roleBadgePill}>
+                          <Text style={styles.roleBadgePillText}>
+                            {(selectedUser?.role || 'customer').toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.heroJoinedText}>
+                        Member since: {formatJoinedDate(selectedUser?.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Contact Details */}
+                  <Text style={styles.modalSectionLabel}>CONTACT DETAILS</Text>
+                  <View style={styles.contactDetailsCard}>
+                    <View style={styles.contactRow}>
+                      <Text style={styles.contactKey}>Email Address</Text>
+                      <Text style={styles.contactValue} numberOfLines={1}>
+                        {selectedUser?.email || 'N/A'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.contactDivider} />
+
+                    <View style={styles.contactRow}>
+                      <Text style={styles.contactKey}>Phone Number</Text>
+                      <Text style={styles.contactValue}>
+                        {selectedUser?.phone || 'Not provided'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.contactDivider} />
+
+                    <View style={styles.contactRow}>
+                      <Text style={styles.contactKey}>OTP Verified</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selectedUser?.isEmailVerified !== false ? '#10B981' : '#EF4444' }} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: selectedUser?.isEmailVerified !== false ? '#10B981' : '#EF4444' }}>
+                          {selectedUser?.isEmailVerified !== false ? 'Yes' : 'No'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Customer Spend & Stats */}
+                  <Text style={styles.modalSectionLabel}>
+                    {selectedUser?.role === 'owner'
+                      ? 'RESTAURANT PERFORMANCE & STATS'
+                      : selectedUser?.role === 'delivery'
+                        ? 'RIDER PERFORMANCE & STATS'
+                        : 'CUSTOMER SPEND & STATS'}
+                  </Text>
+
+                  <View style={styles.statsGridRow}>
+                    <View style={styles.statBoxHalf}>
+                      <Text style={styles.statBoxLabel}>
+                        {selectedUser?.role === 'owner'
+                          ? 'TOTAL ORDERS RECEIVED'
+                          : selectedUser?.role === 'delivery'
+                            ? 'DELIVERIES COMPLETED'
+                            : 'TOTAL ORDERS'}
+                      </Text>
+                      <Text style={styles.statBoxVal}>
+                        {userStats?.totalOrdersCount ?? userStats?.totalOrdersReceived ?? userStats?.totalDeliveriesCompleted ?? 0}
+                      </Text>
+                    </View>
+
+                    <View style={styles.statBoxHalf}>
+                      <Text style={styles.statBoxLabel}>
+                        {selectedUser?.role === 'owner'
+                          ? 'TOTAL REVENUE'
+                          : selectedUser?.role === 'delivery'
+                            ? 'RIDER RATING'
+                            : 'TOTAL SPENT'}
+                      </Text>
+                      <Text style={styles.statBoxVal}>
+                        {selectedUser?.role === 'delivery'
+                          ? `⭐ ${userStats?.averageRating || '5.0'}`
+                          : `₹${userStats?.totalSpent ?? userStats?.totalRevenueGenerated ?? 0}`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Action Button at Bottom */}
+                  <TouchableOpacity
+                    style={[
+                      styles.modalActionBtn,
+                      selectedUser?.status === 'blocked' ? styles.modalActionBtnReactivate : styles.modalActionBtnSuspend,
+                    ]}
+                    onPress={() => {
+                      const isBlocked = selectedUser?.status === 'blocked';
+                      setIsModalVisible(false);
+                      handleToggleUserStatus(selectedUser?._id, selectedUser?.name || 'User', selectedUser?.status);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.modalActionBtnText,
+                        selectedUser?.status === 'blocked' ? styles.modalActionBtnTextReactivate : styles.modalActionBtnTextSuspend,
+                      ]}
+                    >
+                      {selectedUser?.status === 'blocked' ? 'Reactivate Account' : 'Suspend Account'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
         </View>
-      }
-    />
+      </Modal>
+    </>
   );
 };
 
@@ -423,6 +638,211 @@ const styles = StyleSheet.create({
   },
   unblockText: {
     color: '#16A34A',
+  },
+  avatarImg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E2E8F0',
+  },
+  viewDetailsBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  viewDetailsBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#475569',
+  },
+
+  // Modal Dialog Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 30,
+  },
+  modalCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: SPACING.md,
+    maxHeight: '88%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 12,
+  },
+  modalSubtitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  heroProfileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  heroAvatarImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#CBD5E1',
+  },
+  heroAvatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroAvatarText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.white,
+  },
+  roleBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#E2E8F0',
+  },
+  roleBadgePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  heroJoinedText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  modalSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    marginTop: 6,
+  },
+  contactDetailsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 14,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  contactKey: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  contactValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  contactDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 6,
+  },
+  statsGridRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  statBoxHalf: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statBoxLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.4,
+  },
+  statBoxVal: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  modalActionBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  modalActionBtnSuspend: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+  },
+  modalActionBtnReactivate: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#6EE7B7',
+  },
+  modalActionBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  modalActionBtnTextSuspend: {
+    color: '#B45309',
+  },
+  modalActionBtnTextReactivate: {
+    color: '#047857',
   },
   emptyCard: {
     backgroundColor: COLORS.white,

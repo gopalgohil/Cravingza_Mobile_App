@@ -58,6 +58,11 @@ export const updateUserStatusApi = async (id: string, status: 'active' | 'blocke
   });
 };
 
+// 9b. Get Specific User Details by ID -> GET /api/admin/users/:id
+export const getAdminUserByIdApi = async (id: string) => {
+  return await apiClient(`/admin/users/${id}`);
+};
+
 // 10. Get Platform Settings -> GET /api/admin/settings
 export const getAdminSettingsApi = async () => {
   return await apiClient('/admin/settings');
